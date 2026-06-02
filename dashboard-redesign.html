@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Dashboard · PTI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,350;0,9..144,400;0,9..144,500;1,9..144,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script src="assets/app.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <span class="logo"><span class="logo-mark">PTI</span> Prague Tourist Info<span class="logo-sub">prodejní místo</span></span>
+  <span class="tenant-chip">PTI</span>
+  <span class="spacer"></span>
+  <label class="dash-biling" title="Zobrazit u cen i € pro turistu">
+    <input type="checkbox" data-biling-toggle> Ceny i v €
+  </label>
+  <span class="user"><span class="user-av">K</span><span class="user-name">Karel</span><span class="user-role">seller</span></span>
+  <a class="btn-g" href="/?action=logout">Odhlásit</a>
+</header>
+
+<main class="wrap wrap--dash">
+
+  <!-- ============ COMMAND BAR: search is the hero ============ -->
+  <div class="dash-top">
+    <div class="dash-searchwrap">
+      <form method="get" class="dash-search">
+        <span class="dash-search-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        </span>
+        <input type="search" name="q" value="" placeholder="Hledat produkt, agenturu, destinaci… (zkus „lod", „castle", „Schiff")" autocomplete="off" data-live-search data-dash-search autofocus>
+        <span class="dash-search-kbd">/</span>
+      </form>
+      <div class="sr-pop" data-search-pop hidden></div>
+    </div>
+    <div class="dash-acts">
+      <button class="dash-quick" type="button" data-dash-quick>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Rychlý prodej
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ ROZJETÝ PRODEJ / KOŠÍK (shows only when open) ============ -->
+  <!-- In production: server renders [hidden] off when cart has items.
+       Demo: toggle with the two buttons in the keyboard bar below. -->
+  <div class="dash-cart" data-dash-cart>
+    <div class="dash-cart-ic" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.4a1 1 0 0 0 1 .8h9.3a1 1 0 0 0 1-.8L21 7H6"/></svg>
+    </div>
+    <div class="dash-cart-b">
+      <div class="dash-cart-t">Rozdělaný prodej — 3 položky</div>
+      <div class="dash-cart-m">
+        Big Bus Hop-on Hop-off, Crystal Dinner Cruise +1 · celkem <b>4 230 Kč</b>
+        <span class="dash-cart-warn">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+          1× čeká na rezervaci
+        </span>
+      </div>
+    </div>
+    <div class="dash-cart-acts">
+      <a class="btn-s" href="/cart.php">Pokračovat</a>
+      <a class="btn-p" href="/cart.php?do=pay">K platbě</a>
+    </div>
+  </div>
+
+  <!-- ============ SMĚNA: dnešní výkon + konec směny ============ -->
+  <div class="dash-shift">
+    <div class="dash-shift-cell">
+      <span class="dash-shift-l">Směna</span>
+      <span class="dash-shift-user"><span class="dash-shift-av">K</span><span class="dash-shift-v dash-shift-v--name">Karel</span></span>
+    </div>
+    <div class="dash-shift-cell">
+      <span class="dash-shift-l">Prodejů dnes</span>
+      <span class="dash-shift-v brand">14</span>
+    </div>
+    <div class="dash-shift-cell">
+      <span class="dash-shift-l">Tržba dnes</span>
+      <span class="dash-shift-v">23 480 <small class="dash-shift-cur">Kč</small></span>
+    </div>
+    <div class="dash-shift-cell">
+      <span class="dash-shift-l">Hotově / kartou</span>
+      <span class="dash-shift-v dash-shift-v--mono">8 900 / 14 580</span>
+    </div>
+    <div class="dash-shift-cell">
+      <span class="dash-shift-l">Čeká na rezervaci</span>
+      <span class="dash-shift-v dash-shift-v--mono warn">2</span>
+    </div>
+    <div class="dash-shift-sp"></div>
+    <div class="dash-shift-act">
+      <a class="btn-s" href="/shift.php?do=close">Konec směny →</a>
+    </div>
+  </div>
+
+  <!-- ============ MAIN: browse (left) + rails (right) ============ -->
+  <div class="dash-main">
+
+    <!-- LEFT: categories + agencies (browse paths) -->
+    <div class="dash-browse">
+
+      <div class="dash-seclbl"><span class="dash-seclbl-t">Kategorie</span></div>
+      <div class="dash-cats">
+        <a class="cat pal0" href="/?cat=1"><div class="cat-ic">P</div><div class="cat-name">Prohlídkové jízdy</div><div class="cat-meta"><strong>19</strong> produktů · 4 agentury</div></a>
+        <a class="cat pal1" href="/?cat=2"><div class="cat-ic">P</div><div class="cat-name">Procházky</div><div class="cat-meta"><strong>13</strong> produktů · 2 agentury</div></a>
+        <a class="cat pal2" href="/?cat=3"><div class="cat-ic">L</div><div class="cat-name">Lodě a plavby</div><div class="cat-meta"><strong>9</strong> produktů · 4 agentury</div></a>
+        <a class="cat pal3" href="/?cat=4"><div class="cat-ic">K</div><div class="cat-name">Koncerty</div><div class="cat-meta"><strong>15</strong> produktů · 3 agentury</div></a>
+        <a class="cat pal4" href="/?cat=5"><div class="cat-ic">D</div><div class="cat-name">Divadlo a show</div><div class="cat-meta"><strong>3</strong> produkty · 3 agentury</div></a>
+        <a class="cat pal5" href="/?cat=6"><div class="cat-ic">V</div><div class="cat-name">Večeře a zážitky</div><div class="cat-meta"><strong>12</strong> produktů · 4 agentury</div></a>
+        <a class="cat pal6" href="/?cat=7"><div class="cat-ic">V</div><div class="cat-name">Výlety z Prahy</div><div class="cat-meta"><strong>28</strong> produktů · 3 agentury</div></a>
+        <a class="cat pal7" href="/?cat=8"><div class="cat-ic">G</div><div class="cat-name">Ghost tours</div><div class="cat-meta"><strong>3</strong> produkty · 1 agentura</div></a>
+        <a class="cat pal8" href="/?cat=9"><div class="cat-ic">A</div><div class="cat-name">Aktivity</div><div class="cat-meta"><strong>16</strong> produktů · 2 agentury</div></a>
+      </div>
+
+      <div class="dash-seclbl"><span class="dash-seclbl-t">Agentury</span></div>
+      <div class="dash-ags">
+        <a class="ag pal0" href="/?agency=5"><span class="ag-dot"></span>Agency Artistic Intl (AAI)<span class="ag-num">2</span></a>
+        <a class="ag pal1" href="/?agency=3"><span class="ag-dot"></span>Best Tour<span class="ag-num">14</span></a>
+        <a class="ag pal2" href="/?agency=1"><span class="ag-dot"></span>Big Bus Tours<span class="ag-num">1</span></a>
+        <a class="ag pal3" href="/?agency=12"><span class="ag-dot"></span>bm art<span class="ag-num">4</span></a>
+        <a class="ag pal4" href="/?agency=21"><span class="ag-dot"></span>Bohemia Adventures<span class="ag-num">20</span></a>
+        <a class="ag pal5" href="/?agency=13"><span class="ag-dot"></span>Folklore Garden<span class="ag-num">1</span></a>
+        <a class="ag pal6" href="/?agency=16"><span class="ag-dot"></span>Image Black Light Theatre<span class="ag-num">1</span></a>
+        <a class="ag pal7" href="/?agency=14"><span class="ag-dot"></span>Magical Prague<span class="ag-num">14</span></a>
+        <a class="ag pal8" href="/?agency=6"><span class="ag-dot"></span>Marie Tycová<span class="ag-num">2</span></a>
+        <a class="ag pal9" href="/?agency=4"><span class="ag-dot"></span>Martin Tour<span class="ag-num">16</span></a>
+        <a class="ag pal0" href="/?agency=8"><span class="ag-dot"></span>McGee&#039;s Trips &amp; Tickets<span class="ag-num">7</span></a>
+        <a class="ag pal1" href="/?agency=7"><span class="ag-dot"></span>Mozart Dinner<span class="ag-num">6</span></a>
+        <a class="ag pal2" href="/?agency=9"><span class="ag-dot"></span>Prague Boats<span class="ag-num">9</span></a>
+        <a class="ag pal3" href="/?agency=10"><span class="ag-dot"></span>Prague Venice<span class="ag-num">1</span></a>
+        <a class="ag pal4" href="/?agency=15"><span class="ag-dot"></span>PragueWay<span class="ag-num">14</span></a>
+        <a class="ag pal5" href="/?agency=2"><span class="ag-dot"></span>Premiant<span class="ag-num">13</span></a>
+        <a class="ag pal6" href="/?agency=17"><span class="ag-dot"></span>Srnec Theatre<span class="ag-num">1</span></a>
+        <a class="ag pal7" href="/?agency=11"><span class="ag-dot"></span>U Pavouka<span class="ag-num">2</span></a>
+        <a class="ag pal8" href="/?agency=18"><span class="ag-dot"></span>WOW Show<span class="ag-num">1</span></a>
+      </div>
+
+      <!-- keyboard hint + demo cart toggle -->
+      <div class="dash-kbar">
+        <span><b>Klávesy:</b></span>
+        <span><kbd>/</kbd> hledat</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> v seznamu</span>
+        <span><kbd>Enter</kbd> otevřít</span>
+        <span><kbd>Alt</kbd>+<kbd>1…9</kbd> rychlý prodej oblíbené</span>
+        <span><kbd>n</kbd> nový prodej</span>
+        <span class="dash-shift-sp"></span>
+        <span class="dash-kbar-note">náhled košíku:</span>
+        <button class="btn-g" type="button" data-cart-demo="on">rozdělaný</button>
+        <button class="btn-g" type="button" data-cart-demo="off">prázdný</button>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: rails -->
+    <aside class="dash-railcol">
+
+      <!-- Favorites as 1-click quick-sell -->
+      <div class="qsell">
+        <div class="qsell-h">
+          <div class="qsell-h-t"><span class="star">★</span> Oblíbené — prodej na 1 klik</div>
+          <a class="qsell-h-edit" href="/favorites.php">Upravit</a>
+        </div>
+        <div class="qsell-list">
+          <a class="qsell-row" href="/product.php?id=118&amp;quick=1" data-qsell-row>
+            <div class="qsell-b"><div class="qsell-name">Big Bus Hop-on Hop-off</div><div class="qsell-m"><span class="fdot fdot-wait"></span><span class="qsell-ag">Big Bus Tours</span></div></div>
+            <div class="qsell-price">od 270 Kč<small data-eur hidden>≈ 11 €</small></div>
+            <span class="qsell-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="qsell-row" href="/product.php?id=72&amp;quick=1" data-qsell-row>
+            <div class="qsell-b"><div class="qsell-name">Sightseeing Cruise (50 min)</div><div class="qsell-m"><span class="fdot fdot-wait"></span><span class="qsell-ag">Prague Boats</span></div></div>
+            <div class="qsell-price">od 300 Kč<small data-eur hidden>≈ 12 €</small></div>
+            <span class="qsell-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="qsell-row" href="/product.php?id=78&amp;quick=1" data-qsell-row>
+            <div class="qsell-b"><div class="qsell-name">Lunch Cruise on a Glass Boat (2h)</div><div class="qsell-m"><span class="fdot fdot-wait"></span><span class="qsell-ag">Prague Boats</span></div></div>
+            <div class="qsell-price">od 830 Kč<small data-eur hidden>≈ 33 €</small></div>
+            <span class="qsell-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="qsell-row" href="/product.php?id=79&amp;quick=1" data-qsell-row>
+            <div class="qsell-b"><div class="qsell-name">Crystal Dinner Cruise (3h)</div><div class="qsell-m"><span class="fdot fdot-wait"></span><span class="qsell-ag">Prague Boats</span></div></div>
+            <div class="qsell-price">od 1 380 Kč<small data-eur hidden>≈ 55 €</small></div>
+            <span class="qsell-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </a>
+          <a class="qsell-row" href="/product.php?id=11&amp;quick=1" data-qsell-row>
+            <div class="qsell-b"><div class="qsell-name">Český Krumlov – UNESCO</div><div class="qsell-m"><span class="fdot fdot-wait"></span><span class="qsell-ag">Premiant</span></div></div>
+            <div class="qsell-price">od 1 650 Kč<small data-eur hidden>≈ 66 €</small></div>
+            <span class="qsell-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Reservation reminders: products in today's cart/sales that still need a call -->
+      <div class="rmd">
+        <div class="rmd-h">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Rezervace nutná — nezapomeň zavolat
+        </div>
+        <div class="rmd-list">
+          <a class="rmd-row" href="/sales.php?v=V-2026-0148">
+            <span class="rmd-v">V-0148</span> Crystal Dinner Cruise · zítra 19:00 · 2 os.
+          </a>
+          <a class="rmd-row" href="/sales.php?v=V-2026-0151">
+            <span class="rmd-v">V-0151</span> Mozart Dinner · 4. 6. · 3 os.
+          </a>
+        </div>
+      </div>
+
+      <!-- Top sellers today (placeholder copy kept but styled as a live rail) -->
+      <div class="rail">
+        <div class="rail-h">Nejprodávanější dnes <span class="cnt">14 prodejů</span></div>
+        <div class="rail-list">
+          <a class="rail-row" href="/product.php?id=118"><span class="rail-rank">1</span><div class="rail-nm"><div class="rail-name">Big Bus Hop-on Hop-off</div><div class="rail-sub">Big Bus Tours</div></div><span class="rail-val">4×</span></a>
+          <a class="rail-row" href="/product.php?id=72"><span class="rail-rank">2</span><div class="rail-nm"><div class="rail-name">Sightseeing Cruise (50 min)</div><div class="rail-sub">Prague Boats</div></div><span class="rail-val">3×</span></a>
+          <a class="rail-row" href="/product.php?id=34"><span class="rail-rank">3</span><div class="rail-nm"><div class="rail-name">Český Krumlov</div><div class="rail-sub">Martin Tour</div></div><span class="rail-val">2×</span></a>
+        </div>
+      </div>
+
+      <!-- Recently sold: fast reprint / re-sell -->
+      <div class="rail">
+        <div class="rail-h">Nedávno prodané</div>
+        <div class="rail-list">
+          <a class="rail-row" href="/sales.php?v=V-2026-0153"><span class="rail-rank">·</span><div class="rail-nm"><div class="rail-name">Mozart Dinner (welcome drink)</div><div class="rail-sub">před 4 min · V-0153</div></div><span class="rail-val">reprint</span></a>
+          <a class="rail-row" href="/sales.php?v=V-2026-0152"><span class="rail-rank">·</span><div class="rail-nm"><div class="rail-name">Big Bus Hop-on Hop-off</div><div class="rail-sub">před 12 min · V-0152</div></div><span class="rail-val">reprint</span></a>
+          <a class="rail-row" href="/sales.php?v=V-2026-0151"><span class="rail-rank">·</span><div class="rail-nm"><div class="rail-name">Crystal Dinner Cruise (3h)</div><div class="rail-sub">před 26 min · V-0151</div></div><span class="rail-val">reprint</span></a>
+        </div>
+      </div>
+
+      <!-- Manage sales: storno / refund / reprint live elsewhere — give a door -->
+      <div class="rail">
+        <div class="rail-h">Správa prodejů</div>
+        <div class="rail-list">
+          <a class="rail-row" href="/sales.php"><span class="rail-rank">⌕</span><div class="rail-nm"><div class="rail-name">Najít prodej / voucher</div><div class="rail-sub">storno · refundace · reprint</div></div><span class="rail-val">→</span></a>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- ============ Live search index (unchanged, drives the našeptávač) ============ -->
+  <script type="application/json" id="search-index">[{"id":82,"n":"Afternoon Show (3-course)","a":"U Pavouka","c":["Večeře a zážitky"],"p":1399,"h":"afternoon show (3-course) afternoon show (3-course)  u pavouka vecere a zazitky dinner"},{"id":30,"n":"Airport Transfer","a":"Best Tour","c":["Prohlídkové jízdy"],"p":null,"h":"airport transfer   best tour prohlidkove jizdy"},{"id":65,"n":"Alchemy & Mysteries of Prague Castle","a":"McGee's Trips & Tickets","c":["Ghost tours"],"p":700,"h":"alchemy & mysteries of prague castle alchemy & mysteries of prague castle  mcgee's trips & tickets ghost tours hrad zamek duch strasid"},{"id":116,"n":"Antologia (Srnec Black Light Theatre)","a":"Srnec Theatre","c":["Divadlo a show"],"p":450,"h":"antologia (srnec black light theatre) antologia (srnec black light theatre)  srnec theatre divadlo a show"},{"id":76,"n":"Beer Story Tour & Prague River Cruise","a":"Prague Boats","c":["Lodě a plavby"],"p":550,"h":"beer story tour & prague river cruise beer story tour & prague river cruise  prague boats lode a plavby cruise boat river vltava lod cruise boat plavba lod river pivo"},{"id":49,"n":"Best of Czech and World Classical Music","a":"Agency Artistic Intl (AAI)","c":["Koncerty"],"p":600,"h":"best of czech and world classical music   agency artistic intl (aai) koncerty concert"},{"id":87,"n":"Best of Czech and world music","a":"bm art","c":["Koncerty"],"p":500,"h":"best of czech and world music   bm art koncerty concert"},{"id":23,"n":"Best of Prague","a":"Best Tour","c":["Výlety z Prahy"],"p":1990,"h":"best of prague best of prague  best tour vylety z prahy"},{"id":118,"n":"Big Bus Hop-on Hop-off","a":"Big Bus Tours","c":["Prohlídkové jízdy"],"p":270,"h":"big bus hop-on hop-off big bus hop-on hop-off  big bus tours prohlidkove jizdy autobus"},{"id":94,"n":"Bobsleigh Track","a":"Magical Prague","c":["Aktivity"],"p":1000,"h":"bobsleigh track   magical prague aktivity"},{"id":92,"n":"Bungee Jumping","a":"Magical Prague","c":["Aktivity"],"p":3800,"h":"bungee jumping   magical prague aktivity"},{"id":85,"n":"CARMINA BURANA \/ BOLERO","a":"bm art","c":["Koncerty"],"p":500,"h":"carmina burana \/ bolero   bm art koncerty concert"},{"id":104,"n":"Castle Side Beer Tour","a":"PragueWay","c":["Procházky"],"p":1300,"h":"castle side beer tour   pragueway prochazky hrad zamek pivo"},{"id":81,"n":"Čertovka 45min Cruise (Prague Venice)","a":"Prague Venice","c":["Lodě a plavby"],"p":350,"h":"certovka 45min cruise (prague venice) certovka 45min cruise (prague venice)  prague venice lode a plavby cruise boat river vltava lod cruise boat plavba lod river"},{"id":11,"n":"Český Krumlov – UNESCO","a":"Premiant","c":["Výlety z Prahy"],"p":1650,"h":"cesky krumlov – unesco cesky krumlov – unesco  premiant vylety z prahy cesky krumlov ck"},{"id":118,"n":"Big Bus Hop-on Hop-off","a":"Big Bus Tours","c":["Prohlídkové jízdy"],"p":270,"h":"big bus hop-on hop-off  big bus tours prohlidkove jizdy autobus"},{"id":72,"n":"Sightseeing Cruise (50 min)","a":"Prague Boats","c":["Lodě a plavby"],"p":300,"h":"sightseeing cruise (50 min)  prague boats lode a plavby cruise boat river vltava lod plavba"},{"id":78,"n":"Lunch Cruise on a Glass Boat (2h)","a":"Prague Boats","c":["Večeře a zážitky"],"p":830,"h":"lunch cruise on a glass boat (2h)  prague boats vecere plavba lod river dinner"},{"id":79,"n":"Crystal Dinner Cruise (3h)","a":"Prague Boats","c":["Večeře a zážitky"],"p":1380,"h":"crystal dinner cruise (3h)  prague boats vecere plavba lod river dinner"},{"id":34,"n":"Český Krumlov","a":"Martin Tour","c":["Výlety z Prahy"],"p":1500,"h":"cesky krumlov  martin tour vylety z prahy ck"},{"id":59,"n":"Mozart Dinner (welcome drink)","a":"Mozart Dinner","c":["Večeře a zážitky"],"p":1590,"h":"mozart dinner welcome drink  mozart dinner vecere koncert"}]</script>
+
+</main>
+</body>
+</html>
