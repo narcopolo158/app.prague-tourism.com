@@ -498,7 +498,7 @@ $bodyMain = $edit
     : ($listBlock . $form . $noteBlock);       // jinak → seznam, pak formulář pro přidání
 
 View::shell('Produkty', $a,
-    View::adminNav('products')
+    View::adminNav('products', ['actor' => $a])
     . $head . $msgHtml . $errHtml . $confirmBanner
     . $bodyMain,
     ['subtitle' => 'administrace', 'logout' => '/admin/?action=logout']);
