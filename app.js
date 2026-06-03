@@ -649,3 +649,24 @@
 
   recount();
 })();
+
+/* ============================================================
+   Admin — řádkové „•••" menu (details.rowmenu): drž jen jedno
+   otevřené, zavři klikem mimo / Esc. Bez JS funguje taky (nativní).
+   ============================================================ */
+(function () {
+  'use strict';
+  var menus = document.querySelectorAll('details.rowmenu');
+  if (!menus.length) return;
+  menus.forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      if (d.open) menus.forEach(function (o) { if (o !== d) o.open = false; });
+    });
+  });
+  document.addEventListener('click', function (e) {
+    menus.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') menus.forEach(function (d) { d.open = false; });
+  });
+})();

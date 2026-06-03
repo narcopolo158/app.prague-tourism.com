@@ -1,6 +1,49 @@
 --- code/admin/products.php	2026-06-03 17:47:32.000000000 +0000
-+++ out/code/admin/products.php	2026-06-03 17:55:31.054811518 +0000
-@@ -316,42 +316,51 @@
++++ out/code/admin/products.php	2026-06-03 19:06:13.784449379 +0000
+@@ -267,25 +267,33 @@
+         ? '<img src="/uploads/' . e($p['image_path']) . '" alt="" class="pthumb">'
+         : '<span class="pthumb-empty"></span>';
+     $pid = (int) $p['id'];
++    $isFeat = !empty($p['is_featured']);
+     $setup = '';
+     if (empty($hasPrice[$pid])) { $setup .= '<span class="flag-warn" title="Produkt nemá nastavenou aktivní cenu">bez ceny</span>'; }
+     if (in_array($p['schedule_type'], ['fixed_daily','multiple_daily','weekly_pattern','seasonal','specific_dates'], true) && empty($hasSched[$pid])) {
+         $setup .= '<span class="flag-info" title="Produkt s pevnými odjezdy nemá nastavený rozvrh (časy)">bez rozvrhu</span>';
+     }
++    // akce: 2 primární inline + zbytek do CSP-safe „•••" menu (nativní <details>)
++    $actions = '<div class="rowacts">'
++        . '<a class="btn-s" href="?edit=' . $pid . '#prod-editor">Upravit</a>'
++        . '<a class="btn-s" href="/admin/pricing.php?product=' . $pid . '">Ceny</a>'
++        . '<details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary>'
++        . '<div class="rowmenu-pop">'
++        . '<a class="rowmenu-i" href="/admin/schedules.php?product=' . $pid . '">Rozvrh</a>'
++        . '<a class="rowmenu-i" href="/product.php?id=' . $pid . '" target="_blank" rel="noopener">Náhled ↗</a>'
++        . '<form method="post" class="rowmenu-f">' . Csrf::field() . '<input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="' . $pid . '"><button class="rowmenu-i" type="submit">Duplikovat</button></form>'
++        . '<form method="post" class="rowmenu-f">' . Csrf::field() . '<input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="' . $pid . '"><button class="rowmenu-i" type="submit">' . ($isFeat ? 'Odepnout z oblíbených' : 'Připnout do oblíbených') . '</button></form>'
++        . '<form method="post" class="rowmenu-f">' . Csrf::field() . '<input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' . $pid . '"><button class="rowmenu-i" type="submit">' . ($p['status']==='active'?'Deaktivovat':'Aktivovat') . '</button></form>'
++        . '<a class="rowmenu-i rowmenu-i--danger" href="?delete=' . $pid . '">Smazat…</a>'
++        . '</div></details>'
++        . '</div>';
+     $rows .= '<tr><td class="cbcell"><input type="checkbox" name="ids[]" value="' . $pid . '" form="bulkform"></td>'
+-           . '<td>' . $th . (!empty($p['is_featured']) ? '<span class="pin-star" title="Oblíbené">★</span> ' : '') . e($p['name_cs']) . '<div class="tags">' . $tags . $setup . '</div></td>'
++           . '<td class="ptab-prod">' . $th . '<div class="ptab-prodn">' . ($isFeat ? '<span class="pin-star" title="Oblíbené">★</span> ' : '') . e($p['name_cs']) . '<div class="tags">' . $tags . $setup . '</div></div></td>'
+            . '<td>' . e($p['agency_name']) . '</td>'
+            . '<td class="muted">' . e(SCHEDULE[$p['schedule_type']] ?? $p['schedule_type']) . '</td>'
+            . '<td class="mono">' . $dur . '</td>'
+            . '<td>' . $chip . '</td>'
+-           . '<td class="actions"><a class="btn-s" href="?edit=' . (int)$p['id'] . '#prod-editor">Upravit</a> '
+-           . '<a class="btn-g" href="/admin/schedules.php?product=' . (int)$p['id'] . '">Rozvrh</a> '
+-           . '<a class="btn-s" href="/admin/pricing.php?product=' . (int)$p['id'] . '">Ceny</a> '
+-           . '<a class="btn-g" href="/product.php?id=' . (int)$p['id'] . '" target="_blank" rel="noopener">Náhled</a> '
+-           . '<form method="post" class="inline-form">' . Csrf::field() . '<input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="' . (int)$p['id'] . '"><button class="btn-g" type="submit">Duplikovat</button></form> '
+-           . '<form method="post" class="inline-form">' . Csrf::field() . '<input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="' . (int)$p['id'] . '"><button class="btn-g" type="submit">' . (!empty($p['is_featured']) ? 'Odepnout' : 'Připnout') . '</button></form> '
+-           . '<form method="post" class="inline-form">' . Csrf::field() . '<input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' . (int)$p['id'] . '"><button class="btn-g" type="submit">' . ($p['status']==='active'?'Deaktivovat':'Aktivovat') . '</button></form> '
+-           . '<a class="btn-d" href="?delete=' . (int)$p['id'] . '">Smazat</a></td></tr>';
++           . '<td class="ptab-actcell">' . $actions . '</td></tr>';
+ }
+ if ($rows === '') { $rows = '<tr><td colspan="7" class="muted">' . ($filterActive ? 'Žádný produkt neodpovídá filtru.' : 'zatím žádné produkty') . '</td></tr>'; }
+ 
+@@ -316,42 +324,51 @@
  
  $noAgency = $agencies ? '' : '<div class="alert alert-err">Nejdřív vytvoř aspoň jednu agenturu (záložka Agentury) – produkt musí patřit agentuře.</div>';
  
@@ -69,7 +112,7 @@
    . '<label><input type="checkbox" name="pickup_available"'.$ck('pickup_available').'>Dostupné</label>'
    . '<label><input type="checkbox" name="pickup_required"'.$ck('pickup_required').'>Povinné</label>'
    . '<label><input type="checkbox" name="pickup_free"'.$ck('pickup_free',1).'>Zdarma</label>'
-@@ -359,49 +368,72 @@
+@@ -359,49 +376,72 @@
    . '<div class="grid-2 mt-12">'
    . '<div class="field"><label>Okno vyzvednutí (min)</label><input name="pickup_window_minutes" class="mono" value="'.$v('pickup_window_minutes').'"></div>'
    . '<div class="field"><label>Potvrzení vyzvednutí</label><select name="pickup_confirmation"><option value="">—</option>'.$sel(PCONF,'pickup_confirmation',(string)($edit['pickup_confirmation']??'')).'</select></div>'
@@ -168,3 +211,21 @@
    . '<button type="submit" name="after" value="stay" class="btn-p"'.($agencies?'':' disabled').'>'.($edit?'Uložit':'Vytvořit').'</button>'
    . '<button type="submit" name="after" value="close" class="btn-s"'.($agencies?'':' disabled').'>Uložit a zavřít</button>'
    . '</div>'
+@@ -441,7 +481,7 @@
+     . '</form>';
+ 
+ $listBlock = $filterBar . $bulkBar
+-    . '<table class="table"><thead><tr><th class="cbcell"></th><th>Produkt</th><th>Agentura</th><th>Rozvrh</th><th>Délka</th><th>Stav</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table>';
++    . '<table class="table ptab"><thead><tr><th class="cbcell"></th><th>Produkt</th><th>Agentura</th><th>Rozvrh</th><th>Délka</th><th>Stav</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table>';
+ 
+ // potvrzení mazání (dvoukrokové, bez JS)
+ $confirmBanner = '';
+@@ -466,7 +506,7 @@
+     : ($listBlock . $form . $noteBlock);       // jinak → seznam, pak formulář pro přidání
+ 
+ View::shell('Produkty', $a,
+-    View::adminNav('products')
++    View::adminNav('products', ['actor' => $a])
+     . $head . $msgHtml . $errHtml . $confirmBanner
+     . $bodyMain,
+     ['subtitle' => 'administrace', 'logout' => '/admin/?action=logout']);

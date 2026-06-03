@@ -1,4 +1,4 @@
-/* ============================================================
+<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>Produkty · PTI</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,350;0,9..144,400;0,9..144,500;1,9..144,400&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"><style>/* ============================================================
    PTI — design tokens + base components
    Adapted from the UI mockup (pti-ui). CSP-friendly: external file,
    no inline styles. Fonts loaded via <link> in the page <head>.
@@ -1231,3 +1231,676 @@ textarea.ps-in{resize:vertical}
 .bulk-bar{ padding:2px 2px 6px; }
 
 @media print{ .rowmenu-pop{ display:none !important; } .ptab thead th{ position:static; } }
+</style><script>/* PTI — PIN pad interaction (CSP: served from 'self', no inline JS).
+   Progressive: the form also works if the hidden field is filled by a
+   physical numeric keyboard. */
+(function () {
+  'use strict';
+
+  var pad = document.querySelector('[data-pinpad]');
+  if (!pad) return;
+
+  var form  = pad.closest('form');
+  var field = form.querySelector('input[name="pin"]');
+  var dots  = form.querySelectorAll('.pin-dot');
+  var maxLen = parseInt(pad.getAttribute('data-maxlen') || '8', 10);
+
+  function render() {
+    var n = field.value.length;
+    dots.forEach(function (d, i) { d.classList.toggle('on', i < n); });
+  }
+
+  function push(digit) {
+    if (field.value.length >= maxLen) return;
+    field.value += digit;
+    render();
+  }
+  function clearAll() { field.value = ''; render(); }
+  function backspace() { field.value = field.value.slice(0, -1); render(); }
+
+  pad.addEventListener('click', function (e) {
+    var key = e.target.closest('.pinkey');
+    if (!key) return;
+    var action = key.getAttribute('data-key');
+    if (action === 'clear') { clearAll(); }
+    else if (action === 'go') { if (field.value.length >= 4) form.submit(); }
+    else if (action === 'back') { backspace(); }
+    else { push(action); }
+  });
+
+  // physical keyboard support
+  document.addEventListener('keydown', function (e) {
+    if (e.key >= '0' && e.key <= '9') { push(e.key); }
+    else if (e.key === 'Backspace') { e.preventDefault(); backspace(); }
+    else if (e.key === 'Enter') { if (field.value.length >= 4) form.submit(); }
+    else if (e.key === 'Escape') { clearAll(); }
+  });
+
+  render();
+})();
+
+/* PTI — pricing matrix 3D tab switching */
+(function () {
+  'use strict';
+  document.querySelectorAll('[data-mtx-tabs]').forEach(function (group) {
+    var tabs = group.querySelectorAll('[data-mtx-tab]');
+    var panels = document.querySelectorAll('[data-mtx-panel="' + group.getAttribute('data-mtx-tabs') + '"]');
+    group.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-mtx-tab]');
+      if (!t) return;
+      var idx = t.getAttribute('data-mtx-tab');
+      tabs.forEach(function (x) { x.classList.toggle('on', x === t); });
+      panels.forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-mtx-idx') === idx); });
+    });
+  });
+})();
+
+/* PTI — sale builder live customer price (no margin shown to seller) */
+(function () {
+  'use strict';
+  var root = document.querySelector('[data-builder]'); if (!root) return;
+  var dataEl = document.getElementById('px-data'); if (!dataEl) return;
+  var data; try { data = JSON.parse(dataEl.textContent); } catch (e) { return; }
+  var prices = data.prices || {}; var SEP = '\u001f';
+  var dimOrder = data.dimOrder || []; var hasQty = !!data.hasQty;
+  var discEl = root.querySelector('[data-disc]');
+  var maxDisc = parseFloat(root.getAttribute('data-maxdisc') || '0') || 0;
+  var addBtns = root.querySelectorAll('[data-add]');
+  function setAdd(on) { addBtns.forEach(function (b) { if (on) b.removeAttribute('disabled'); else b.setAttribute('disabled', 'disabled'); }); }
+  var outCzk = root.querySelector('[data-out-czk]'), outEur = root.querySelector('[data-out-eur]');
+  var outStrike = root.querySelector('[data-strike]'), outUnit = root.querySelector('[data-unit]');
+  var qtyEl = root.querySelector('[data-qty]');
+  function fmt(n) { return n.toLocaleString('cs-CZ', { maximumFractionDigits: 0 }); }
+  function selVal(id) { var g = root.querySelector('[data-dim="' + id + '"]'); if (!g) return undefined; var c = g.querySelector('input:checked'); return c ? c.value : null; }
+  function keyFor(qpos) {
+    var parts = [];
+    for (var i = 0; i < dimOrder.length; i++) {
+      var id = dimOrder[i];
+      if (qpos && Object.prototype.hasOwnProperty.call(qpos, id)) { parts.push(qpos[id]); }
+      else { var v = selVal(id); if (v === null || v === undefined) return null; parts.push(v); }
+    }
+    return parts.join(SEP);
+  }
+  function markOn() { root.querySelectorAll('.bld-opt,.vcard').forEach(function (lbl) { var inp = lbl.querySelector('input'); lbl.classList.toggle('on', !!(inp && inp.checked)); }); }
+  var qtyFirst = {};
+  root.querySelectorAll('.qrow').forEach(function (r) { try { var qp = JSON.parse(r.getAttribute('data-qpos') || '{}'); for (var k in qp) { if (qtyFirst[k] === undefined) qtyFirst[k] = qp[k]; } } catch (e) {} });
+  function updateCards() {
+    root.querySelectorAll('.vcard').forEach(function (card) {
+      var pr = card.querySelector('[data-vprice]'); if (!pr) return;
+      var cardGroup = card.closest('[data-dim]'); var vval = card.getAttribute('data-vval');
+      var parts = [];
+      for (var i = 0; i < dimOrder.length; i++) {
+        var id = dimOrder[i]; var g = root.querySelector('[data-dim="' + id + '"]');
+        if (g === cardGroup) { parts.push(vval); }
+        else if (g) { var c = g.querySelector('input:checked'); if (!c) { parts = null; break; } parts.push(c.value); }
+        else { if (qtyFirst[id] === undefined) { parts = null; break; } parts.push(qtyFirst[id]); }
+      }
+      if (!parts) { pr.textContent = ''; return; }
+      var px = prices[parts.join(SEP)];
+      pr.innerHTML = px ? (fmt(px.c) + ' Kč' + (px.e != null ? ' <small>/ ' + fmt(px.e) + ' €</small>' : '')) : '—';
+    });
+  }
+  function recompute() {
+    markOn(); updateCards();
+    var lines = [];
+    var d = discEl ? (parseFloat(discEl.value) || 0) : 0; if (d < 0) d = 0; if (d > maxDisc) { d = maxDisc; if (discEl) discEl.value = String(maxDisc); }
+    var totalC = 0, totalE = 0, anyE = true, totalQ = 0;
+    if (hasQty) {
+      root.querySelectorAll('.qrow').forEach(function (r) {
+        var qp = {}; try { qp = JSON.parse(r.getAttribute('data-qpos') || '{}'); } catch (e) {}
+        var inp = r.querySelector('input[data-qcell]');
+        var k = keyFor(qp); var px = k !== null ? prices[k] : undefined;
+        var prEl = r.querySelector('[data-qprice]');
+        var stepBtns = r.querySelectorAll('[data-qstep]');
+        if (!px) {
+          // tento typ osoby není ve zvolené variantě nabízen → zákaz + zašednutí
+          r.classList.add('qrow--off');
+          if (inp) { inp.value = '0'; inp.disabled = true; }
+          stepBtns.forEach(function (b) { b.disabled = true; });
+          if (prEl) prEl.innerHTML = '<span class="pdx-x" title="V této variantě není nabízeno">\u2715</span>';
+          return;
+        }
+        r.classList.remove('qrow--off');
+        if (inp) inp.disabled = false;
+        stepBtns.forEach(function (b) { b.disabled = false; });
+        var q = Math.max(0, parseInt(inp && inp.value, 10) || 0);
+        if (prEl) prEl.innerHTML = fmt(px.c) + ' Kč' + (px.e != null ? ' <small>/ ' + fmt(px.e) + ' €</small>' : '');
+        if (q > 0) { totalC += px.c * q; if (px.e != null) totalE += px.e * q; else anyE = false; totalQ += q; lines.push({ l: r.getAttribute('data-label') || '', q: q, c: px.c * q }); }
+      });
+      if (outUnit) outUnit.textContent = totalQ > 0 ? (totalQ + ' ks') : '';
+    } else {
+      var q = Math.max(1, parseInt(qtyEl && qtyEl.value, 10) || 1); var k = keyFor(null); var px = k !== null ? prices[k] : undefined;
+      if (px) { totalC = px.c * q; totalE = px.e != null ? px.e * q : 0; anyE = px.e != null; totalQ = q; lines.push({ l: 'Vstupenky', q: q, c: px.c * q }); if (outUnit) outUnit.textContent = fmt(px.c) + ' Kč' + (px.e != null ? ' / ' + fmt(px.e) + ' €' : '') + (q > 1 ? ' × ' + q : ''); }
+    }
+    var addC = 0, addE = 0;
+    root.querySelectorAll('[data-addon]').forEach(function (r) {
+      var inp = r.querySelector('input[data-qcell]'); var q = Math.max(0, parseInt(inp && inp.value, 10) || 0);
+      var ac = parseFloat(r.getAttribute('data-addon-czk')) || 0; var ae = r.getAttribute('data-addon-eur');
+      if (q > 0) { addC += ac * q; if (ae !== '' && ae != null) addE += parseFloat(ae) * q; lines.push({ l: r.getAttribute('data-label') || 'Doplněk', q: q, c: ac * q }); }
+    });
+    var custC = totalC * (1 - d / 100) + addC; var custE = anyE ? (totalE * (1 - d / 100) + addE) : null;
+    if (outStrike) outStrike.textContent = (d > 0 && totalQ > 0) ? fmt(totalC + addC) + ' Kč' : '';
+    if (outCzk) outCzk.textContent = totalQ > 0 ? fmt(custC) + ' Kč' : '—';
+    if (outEur) outEur.textContent = (totalQ > 0 && custE != null) ? fmt(custE) + ' €' : '';
+    var sumEl = root.querySelector('[data-summary]');
+    if (sumEl) {
+      if (lines.length) {
+        var esc = function (s) { return String(s).replace(/[&<>]/g, function (c) { return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'; }); };
+        var html = lines.map(function (L) { return '<div class="pdx-sumrow"><span>' + L.q + '× ' + esc(L.l) + '</span><strong>' + fmt(L.c) + ' Kč</strong></div>'; }).join('');
+        if (d > 0) { html += '<div class="pdx-sumrow"><span>Sleva ' + d + ' %</span><strong>-' + d + ' %</strong></div>'; }
+        sumEl.innerHTML = html;
+      } else { sumEl.innerHTML = '<div class="pdx-hint">Zadejte počet osob.</div>'; }
+    }
+    var confirmEl = root.querySelector('[data-reserve-confirm]');
+    setAdd(totalQ > 0 && (!confirmEl || confirmEl.checked));
+  }
+  root.addEventListener('change', recompute);
+  root.addEventListener('input', recompute);
+  root.querySelectorAll('[data-qstep]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.getAttribute('data-qfor');
+      var inp = t ? root.querySelector('input[data-qcell="' + t + '"]') : qtyEl;
+      if (!inp) return;
+      var min = t ? 0 : 1; var q = Math.max(min, parseInt(inp.value, 10) || min);
+      q += (b.getAttribute('data-qstep') === '+' ? 1 : -1); if (q < min) q = min;
+      inp.value = String(q); recompute();
+    });
+  });
+  recompute();
+})();
+
+/* Schedule-driven date/time picker: fill allowed times for the chosen date;
+   default to today (or next allowed day for restricted-day products). */
+(function () {
+  var dataEl = document.getElementById('px-data');
+  if (!dataEl) return;
+  var data; try { data = JSON.parse(dataEl.textContent); } catch (e) { return; }
+  var sched = data && data.schedule;
+  if (!sched || !sched.rules || !sched.rules.length) return;
+  var dateEl = document.querySelector('[data-sched-date]');
+  var sel = document.querySelector('[data-time-select]');
+  var hint = document.querySelector('[data-sched-hint]');
+  if (!dateEl || !sel) return;
+
+  var lf = data && data.langFilter;
+  function selLang() {
+    if (!lf) return null;
+    var c = document.querySelector('input[name="dim_' + lf.dim + '"]:checked');
+    return c ? (lf.map[c.value] || null) : null;
+  }
+
+  function iso(dstr) { var d = new Date(dstr + 'T00:00:00'); if (isNaN(d.getTime())) return 0; return ((d.getDay() + 6) % 7) + 1; }
+  function allowed(dstr) {
+    var wd = iso(dstr), out = {}, i, j, r;
+    for (i = 0; i < sched.rules.length; i++) {
+      r = sched.rules[i];
+      if (r.from || r.to) {
+        var md = dstr.slice(5), mf = r.from ? r.from.slice(5) : null, mt = r.to ? r.to.slice(5) : null, inS = true;
+        if (mf !== null && mt !== null) { inS = (mf <= mt) ? (md >= mf && md <= mt) : (md >= mf || md <= mt); }
+        else if (mf !== null) { inS = md >= mf; }
+        else if (mt !== null) { inS = md <= mt; }
+        if (!inS) continue;
+      }
+      if (r.days && r.days.length && r.days.indexOf(wd) === -1) continue;
+      for (j = 0; j < (r.times || []).length; j++) out[r.times[j]] = true;
+    }
+    var keys = Object.keys(out).sort();
+    var lc = selLang();
+    if (lc) keys = keys.filter(function (t) { return t.indexOf('(' + lc + ')') !== -1; });
+    return keys;
+  }
+  function fill() {
+    var prev = sel.value, times = allowed(dateEl.value);
+    sel.innerHTML = '';
+    if (!times.length) { if (hint) hint.textContent = 'V tento den se nekoná'; return; }
+    if (hint) hint.textContent = '';
+    times.forEach(function (t) { var o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+    sel.value = times.indexOf(prev) !== -1 ? prev : times[0];
+  }
+  if (!dateEl.value) dateEl.value = sched.today;
+  if (allowed(dateEl.value).length === 0) {
+    var base = new Date(dateEl.value + 'T00:00:00');
+    for (var k = 1; k <= 60; k++) {
+      var ds = new Date(base.getTime() + k * 86400000).toISOString().slice(0, 10);
+      if (allowed(ds).length) { dateEl.value = ds; break; }
+    }
+  }
+  dateEl.addEventListener('change', fill);
+  if (lf) { var ls = document.querySelectorAll('input[name="dim_' + lf.dim + '"]'); for (var z = 0; z < ls.length; z++) { ls[z].addEventListener('change', fill); } }
+  fill();
+})();
+
+/* live fuzzy search over the home product index */
+(function () {
+  var input = document.querySelector('[data-live-search]');
+  var pop   = document.querySelector('[data-search-pop]');
+  var dataEl = document.getElementById('search-index');
+  if (!input || !pop || !dataEl) return;
+  var IDX;
+  try { IDX = JSON.parse(dataEl.textContent); } catch (e) { return; }
+
+  function norm(s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function fmt(n) { return n.toLocaleString('cs-CZ', { maximumFractionDigits: 0 }); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  var rows = [], hi = -1;
+
+  function scoreItem(it, q, toks) {
+    var h = it.h, n = norm(it.n), a = norm(it.a);
+    for (var i = 0; i < toks.length; i++) { if (h.indexOf(toks[i]) === -1) return -1; }
+    var s = 1;
+    if (n.indexOf(q) === 0) s += 100; else if (n.indexOf(q) > -1) s += 60;
+    if (a.indexOf(q) === 0) s += 30; else if (a.indexOf(q) > -1) s += 18;
+    return s;
+  }
+
+  function highlight(name, q) {
+    var i = norm(name).indexOf(q);
+    if (q === '' || i < 0) return esc(name);
+    return esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + q.length)) + '</mark>' + esc(name.slice(i + q.length));
+  }
+
+  function render(q) {
+    var toks = q.split(/\s+/).filter(Boolean), scored = [];
+    for (var i = 0; i < IDX.length; i++) { var sc = scoreItem(IDX[i], q, toks); if (sc >= 0) scored.push([sc, IDX[i]]); }
+    scored.sort(function (x, y) { return y[0] - x[0] || x[1].n.localeCompare(y[1].n, 'cs'); });
+    rows = scored.slice(0, 8).map(function (x) { return x[1]; });
+    if (!rows.length) { pop.innerHTML = '<div class="sr-empty">Nic nenalezeno — zkus jiný výraz</div>'; pop.hidden = false; hi = -1; return; }
+    var html = '<div class="sr-list">';
+    rows.forEach(function (it, i) {
+      var price = it.p != null ? '<div class="sr-pb"><span class="sr-pf">od</span><span class="sr-p">' + fmt(it.p) + ' Kč</span></div>' : '';
+      var catx = (it.c && it.c[0]) ? '<span class="sep">·</span>' + esc(it.c[0]) : '';
+      html += '<div class="sr-row" data-href="/product.php?id=' + it.id + '" data-i="' + i + '">'
+            + '<span class="sr-kh">' + (i + 1) + '</span>'
+            + '<div class="sr-mn"><div class="sr-name">' + highlight(it.n, q) + '</div>'
+            + '<div class="sr-m"><span class="ag-tag">' + esc(it.a) + '</span>' + catx + '</div></div>'
+            + price + '</div>';
+    });
+    html += '</div>';
+    pop.innerHTML = html; pop.hidden = false; hi = 0; paint();
+  }
+  function paint() { var rs = pop.querySelectorAll('.sr-row'); rs.forEach(function (r, i) { r.classList.toggle('hi', i === hi); }); }
+  function open(i) { if (rows[i]) window.location = '/product.php?id=' + rows[i].id; }
+
+  input.addEventListener('input', function () {
+    var q = norm(input.value.trim());
+    if (q.length < 1) { pop.hidden = true; rows = []; return; }
+    render(q);
+  });
+  input.addEventListener('keydown', function (e) {
+    if (pop.hidden) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); hi = Math.min(rows.length - 1, hi + 1); paint(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); hi = Math.max(0, hi - 1); paint(); }
+    else if (e.key === 'Enter') { if (hi >= 0 && rows[hi]) { e.preventDefault(); open(hi); } }
+    else if (e.key === 'Escape') { pop.hidden = true; }
+  });
+  pop.addEventListener('click', function (e) {
+    var row = e.target.closest('.sr-row');
+    if (row) { window.location = row.getAttribute('data-href'); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!pop.contains(e.target) && e.target !== input) { pop.hidden = true; }
+  });
+})();
+
+/* print button (success / voucher) */
+(function () {
+  document.querySelectorAll('[data-print]').forEach(function (b) {
+    b.addEventListener('click', function () { window.print(); });
+  });
+})();
+
+/* payment amount toggle (full vs deposit) */
+(function () {
+  var box = document.querySelector('[data-pay-amount]');
+  if (!box) return;
+  var paidEl = document.querySelector('[data-paid]');
+  var balEl = document.querySelector('[data-balance]');
+  var balWrap = document.querySelector('[data-balance-wrap]');
+  function apply() {
+    var depRadio = box.querySelector('input[value="deposit"]');
+    var dep = depRadio && depRadio.checked;
+    if (paidEl) paidEl.textContent = dep ? box.getAttribute('data-dep-paid') : box.getAttribute('data-full-paid');
+    if (balEl) balEl.textContent = dep ? box.getAttribute('data-dep-bal') : box.getAttribute('data-full-bal');
+    if (balWrap) balWrap.classList.toggle('balance-hot', !!dep);
+  }
+  box.querySelectorAll('input[name="payment_amount"]').forEach(function (r) { r.addEventListener('change', apply); });
+  apply();
+})();
+
+/* ============================================================
+   HOME DASHBOARD — REDESIGN behaviors (appended for mockup)
+   All hooks via data-* so this maps 1:1 onto server-rendered PHP.
+   ============================================================ */
+
+/* (1) keyboard-first: "/" focuses search, number keys jump to favorites,
+   "n" starts a new quick sale, "Esc" clears search. Counter can work
+   the whole screen without a mouse. */
+(function () {
+  'use strict';
+  var search = document.querySelector('[data-dash-search]');
+  if (!search) return;
+
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    var typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+    // "/" or "s" focuses the search from anywhere (unless already typing)
+    if (!typing && (e.key === '/' )) {
+      e.preventDefault(); search.focus(); search.select();
+      return;
+    }
+    // Alt+1..9 → open favorite N as a quick sale (works even while typing)
+    if (e.altKey && e.key >= '1' && e.key <= '9') {
+      var rows = document.querySelectorAll('[data-qsell-row]');
+      var idx = parseInt(e.key, 10) - 1;
+      if (rows[idx]) { e.preventDefault(); window.location = rows[idx].getAttribute('href'); }
+      return;
+    }
+    // "n" → new quick sale (focus search w/ quick flag)
+    if (!typing && (e.key === 'n' || e.key === 'N')) {
+      var q = document.querySelector('[data-dash-quick]');
+      if (q) { e.preventDefault(); q.click(); }
+    }
+  });
+})();
+
+/* (2) in-progress cart banner: shows only when a sale is open. In the
+   real app the server prints data-cart-count; here a tiny demo toggle
+   lets you preview both states via data-cart-demo buttons. */
+(function () {
+  'use strict';
+  var banner = document.querySelector('[data-dash-cart]');
+  if (!banner) return;
+  // demo-only: buttons that simulate "has items" / "empty"
+  document.querySelectorAll('[data-cart-demo]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var on = b.getAttribute('data-cart-demo') === 'on';
+      banner.hidden = !on;
+    });
+  });
+})();
+
+/* (3) quick-sell click feedback: pressing a favorite row navigates to the
+   product detail with a ?quick=1 flag (server then preselects 1× Adult
+   and jumps straight to the price box). Row is an <a>, so this is purely
+   a press affordance — no behavior hijack, keyboard Enter still works. */
+(function () {
+  'use strict';
+  document.querySelectorAll('[data-qsell-row]').forEach(function (row) {
+    row.addEventListener('mousedown', function () { row.classList.add('pressed'); });
+    row.addEventListener('mouseup', function () { row.classList.remove('pressed'); });
+    row.addEventListener('mouseleave', function () { row.classList.remove('pressed'); });
+  });
+})();
+
+/* (4) bilingual price helper: a small toggle that flips favorite/recent
+   price labels between "Kč" and "Kč + €" so the seller can show the
+   tourist the € figure without opening the product. data-biling-toggle. */
+(function () {
+  'use strict';
+  var t = document.querySelector('[data-biling-toggle]');
+  if (!t) return;
+  t.addEventListener('change', function () {
+    document.querySelectorAll('[data-eur]').forEach(function (el) {
+      el.hidden = !t.checked;
+    });
+  });
+})();
+
+/* "+ Rychlý prodej" button focuses the search (full overlay comes later) */
+(function () {
+  'use strict';
+  var qbtn = document.querySelector('[data-dash-quick]');
+  var search = document.querySelector('[data-dash-search]');
+  if (!qbtn || !search) return;
+  qbtn.addEventListener('click', function () { search.focus(); search.select(); });
+})();
+
+/* quick-sale: product.php?quick=1 preselects 1 on the first quantity row and
+   scrolls to the price box, so a favorite sells in ~1 click. */
+(function () {
+  'use strict';
+  if (!/[?&]quick=1(?:&|$)/.test(location.search)) return;
+  var root = document.querySelector('[data-builder]'); if (!root) return;
+  var inp = root.querySelector('.qrow input[data-qcell]') || root.querySelector('[data-qty]');
+  if (inp) {
+    inp.value = inp.hasAttribute('data-qty') ? String(Math.max(1, parseInt(inp.value, 10) || 1)) : '1';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  var side = root.querySelector('.pdx-side') || root.querySelector('[data-out-czk]');
+  if (side && side.scrollIntoView) { side.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+})();
+
+/* ============================================================
+   PTI — app.js doplněk: dirty-stav editoru produktu (volitelné)
+   Vlož tento blok do assets/app.js. CSP-safe: žádný inline JS,
+   navěšuje se z externího souboru. Bez tohoto JS editor funguje
+   normálně — savebar jen nezobrazí živé počítadlo změn.
+
+   Aby se app.js na adminu vůbec načetl, musí View::shell pro admin
+   stránky předat ['js' => true] (viz poznámka v changelogu).
+   ============================================================ */
+(function () {
+  'use strict';
+  function initProductEditorDirty() {
+    var editor = document.getElementById('prod-editor');
+    if (!editor) return;
+    var form = editor.querySelector('form');
+    var info = editor.querySelector('.adm-savebar-info');
+    if (!form || !info) return;
+
+    var baseInfo = info.innerHTML;            // původní text (Upravuješ #… / Nový produkt…)
+    var fields = form.querySelectorAll('input, select, textarea');
+    var initial = new Map();
+    var submitting = false;
+
+    function snapshot(el) {
+      if (el.type === 'checkbox' || el.type === 'radio') return el.checked ? '1' : '0';
+      if (el.type === 'file') return '';      // file inputy neumíme porovnat hodnotou
+      return el.value;
+    }
+    fields.forEach(function (el) {
+      if (!el.name) return;
+      initial.set(el, snapshot(el));
+    });
+
+    function recompute() {
+      var dirtyEls = [];
+      initial.forEach(function (val, el) {
+        if (el.type === 'file') { if (el.files && el.files.length) dirtyEls.push(el); return; }
+        if (snapshot(el) !== val) dirtyEls.push(el);
+      });
+      // zvýrazni karty, kde je změna
+      editor.querySelectorAll('.adm-card.is-dirty').forEach(function (c) { c.classList.remove('is-dirty'); });
+      dirtyEls.forEach(function (el) {
+        var card = el.closest('.adm-card');
+        if (card) card.classList.add('is-dirty');
+      });
+      var n = dirtyEls.length;
+      if (n === 0) { info.innerHTML = baseInfo; }
+      else {
+        var word = (n === 1) ? 'neuložená změna' : (n < 5 ? 'neuložené změny' : 'neuložených změn');
+        info.innerHTML = '\u25CF <b>' + n + '</b> ' + word;
+      }
+    }
+
+    form.addEventListener('input', recompute);
+    form.addEventListener('change', recompute);
+    form.addEventListener('submit', function () { submitting = true; });
+
+    window.addEventListener('beforeunload', function (ev) {
+      if (submitting) return;
+      var dirty = false;
+      initial.forEach(function (val, el) {
+        if (el.type === 'file') { if (el.files && el.files.length) dirty = true; return; }
+        if (snapshot(el) !== val) dirty = true;
+      });
+      if (dirty) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProductEditorDirty);
+  } else {
+    initProductEditorDirty();
+  }
+})();
+
+/* ============================================================
+   CSP-safe potvrzení: <form data-confirm="…"> přeruší submit,
+   pokud uživatel nepotvrdí. Náhrada inline onsubmit="confirm()".
+   ============================================================ */
+(function () {
+  'use strict';
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('form[data-confirm]');
+    if (!f) return;
+    if (!window.confirm(f.getAttribute('data-confirm') || 'Opravdu pokračovat?')) {
+      e.preventDefault();
+    }
+  });
+})();
+
+/* ============================================================
+   PTI — Matice cen (admin/matrix.php). Hook: [data-matrix].
+   - dirty: zvýrazní změněné buňky + počítá je (savebar/chip)
+   - bulk:  [data-mtx-bulk] = pct | round | eur | clear (nad VIDITELNÝMI buňkami)
+   - klávesy: ↑/↓/Enter posun mezi Kč poli, Esc zruší fokus
+   Pracuje jen s existujícími inputy (name=czk[]/eur[]) a odesílá je
+   stávajícím <form>. Nemění datové toky.
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.querySelector('[data-matrix]');
+  if (!root) return;
+  var rate = parseFloat(root.getAttribute('data-rate')) || 25;
+
+  var cells = Array.prototype.slice.call(root.querySelectorAll('.mtx-cell'));
+  if (!cells.length) return;
+
+  function czkOf(cell) { return cell.querySelector('input[name="czk[]"]'); }
+  function eurOf(cell) { return cell.querySelector('input[name="eur[]"]'); }
+  function isVisible(cell) {
+    var panel = cell.closest('.mtx-panel');
+    if (panel && !panel.classList.contains('on')) return false;
+    return cell.offsetParent !== null;
+  }
+  function fmt(n) {
+    if (!isFinite(n)) return '';
+    var s = (Math.round(n * 100) / 100).toFixed(2);
+    return s.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+  function parse(v) {
+    v = String(v == null ? '' : v).replace(/\s|\u00a0/g, '').replace(',', '.');
+    return v === '' || isNaN(parseFloat(v)) ? null : parseFloat(v);
+  }
+
+  // snapshot
+  var initial = new Map();
+  cells.forEach(function (cell) {
+    var c = czkOf(cell), e = eurOf(cell);
+    initial.set(cell, (c ? c.value : '') + '\u001f' + (e ? e.value : ''));
+  });
+
+  var chip = root.querySelector('[data-mtx-count]');
+  var savebarInfo = document.querySelector('.adm-savebar-info');
+  var baseInfo = savebarInfo ? savebarInfo.innerHTML : '';
+
+  function recount() {
+    var n = 0;
+    cells.forEach(function (cell) {
+      var c = czkOf(cell), e = eurOf(cell);
+      var now = (c ? c.value : '') + '\u001f' + (e ? e.value : '');
+      var changed = now !== initial.get(cell);
+      cell.classList.toggle('is-changed', changed);
+      if (changed) n++;
+    });
+    if (chip) {
+      if (n > 0) { chip.hidden = false; chip.textContent = n + (n === 1 ? ' buňka upravena' : (n < 5 ? ' buňky upraveno' : ' buněk upraveno')); }
+      else { chip.hidden = true; }
+    }
+    if (savebarInfo) {
+      savebarInfo.innerHTML = n > 0
+        ? '\u25CF <b>' + n + '</b> ' + (n === 1 ? 'buňka upravena' : (n < 5 ? 'buňky upraveno' : 'buněk upraveno'))
+        : baseInfo;
+    }
+  }
+  root.addEventListener('input', recount);
+  root.addEventListener('change', recount);
+
+  // ---- bulk (jen viditelné buňky) ----
+  function visibleCells() { return cells.filter(isVisible); }
+  function fire(inp) { inp.dispatchEvent(new Event('input', { bubbles: true })); }
+
+  root.querySelectorAll('[data-mtx-bulk]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var act = btn.getAttribute('data-mtx-bulk');
+      var vc = visibleCells();
+      if (act === 'pct') {
+        var p = parseFloat((window.prompt('Změnit Kč i € o kolik %? (např. -10 nebo 5)', '') || '').replace(',', '.'));
+        if (isNaN(p)) return;
+        vc.forEach(function (cell) {
+          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
+          if (cv != null) c.value = fmt(cv * (1 + p / 100));
+          var ev = parse(e && e.value); if (ev != null) e.value = fmt(ev * (1 + p / 100));
+        });
+      } else if (act === 'round') {
+        var step = parseInt(window.prompt('Zaokrouhlit Kč nahoru na násobek? (10 / 50 / 100)', '10') || '0', 10);
+        if (!step) return;
+        vc.forEach(function (cell) { var c = czkOf(cell), cv = parse(c && c.value); if (cv != null) c.value = fmt(Math.ceil(cv / step) * step); });
+      } else if (act === 'eur') {
+        vc.forEach(function (cell) {
+          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
+          if (cv != null && e && parse(e.value) == null) e.value = fmt(Math.round(cv / rate));
+        });
+      } else if (act === 'clear') {
+        if (!window.confirm('Vyčistit ' + vc.length + ' viditelných buněk?')) return;
+        vc.forEach(function (cell) { var c = czkOf(cell), e = eurOf(cell); if (c) c.value = ''; if (e) e.value = ''; });
+      }
+      var first = vc[0] && czkOf(vc[0]); if (first) fire(first); else recount();
+    });
+  });
+
+  // ---- klávesová navigace mezi Kč poli ----
+  function czkInputs() { return visibleCells().map(czkOf).filter(Boolean); }
+  root.addEventListener('focusin', function (e) {
+    if (e.target.matches && e.target.matches('input[name="czk[]"]')) e.target.classList.add('mtx-here');
+  });
+  root.addEventListener('focusout', function (e) {
+    if (e.target.classList) e.target.classList.remove('mtx-here');
+  });
+  root.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (!(t.matches && t.matches('input[name="czk[]"]'))) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+    var list = czkInputs(); var i = list.indexOf(t); if (i === -1) return;
+    e.preventDefault();
+    var j = (e.key === 'ArrowUp') ? i - 1 : i + 1;
+    if (list[j]) { list[j].focus(); list[j].select(); }
+  });
+
+  recount();
+})();
+
+/* ============================================================
+   Admin — řádkové „•••" menu (details.rowmenu): drž jen jedno
+   otevřené, zavři klikem mimo / Esc. Bez JS funguje taky (nativní).
+   ============================================================ */
+(function () {
+  'use strict';
+  var menus = document.querySelectorAll('details.rowmenu');
+  if (!menus.length) return;
+  menus.forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      if (d.open) menus.forEach(function (o) { if (o !== d) o.open = false; });
+    });
+  });
+  document.addEventListener('click', function (e) {
+    menus.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') menus.forEach(function (d) { d.open = false; });
+  });
+})();
+</script></head><body><header class="topbar"><span class="logo"><span class="logo-mark">PTI</span> Prague Tourist Info<span class="logo-sub">administrace</span></span><span class="spacer"></span><a class="user" href="/sales.php" title="Přehled prodejů a voucherů"><span class="user-av">M</span><span class="user-name">Michal</span><span class="user-role">owner</span></a><a class="btn-g" href="/admin/?action=logout">Odhlásit</a></header><main class="wrap wrap--admin"><aside class="adm-side"><div class="adm-side-brand"><span class="adm-side-mark">PTI</span><span class="adm-side-brand-t">Admin</span></div><nav class="adm-side-nav"><a class="adm-side-link" href="/admin/"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg><span class="adm-side-tx">Přehled</span></a><div class="adm-side-group-l">Katalog</div><a class="adm-side-link active" href="/admin/products.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg><span class="adm-side-tx">Produkty</span></a><a class="adm-side-link" href="/admin/ordering.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="9" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-1.4 2-2.5S5 14 4 14.5"/></svg><span class="adm-side-tx">Pořadí</span></a><a class="adm-side-link" href="/admin/categories.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg><span class="adm-side-tx">Kategorie</span></a><a class="adm-side-link" href="/admin/agencies.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></svg><span class="adm-side-tx">Agentury</span></a><a class="adm-side-link" href="/admin/schedules.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="18" cy="18" r="4"/><path d="M18 16.5V18l1 1"/></svg><span class="adm-side-tx">Rozvrhy</span></a><div class="adm-side-group-l">Provoz</div><a class="adm-side-link" href="/admin/sellers.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.1a4 4 0 0 1 0 7.75"/></svg><span class="adm-side-tx">Prodejci</span></a><a class="adm-side-link" href="/admin/reports.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/><line x1="3" y1="20" x2="21" y2="20"/></svg><span class="adm-side-tx">Reporty</span></a><div class="adm-side-group-l">Systém</div><a class="adm-side-link" href="/admin/admins.php"><svg class="adm-side-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><span class="adm-side-tx">Admini</span></a></nav><div class="adm-side-foot"><span class="adm-side-foot-av">M</span><span class="adm-side-foot-b"><span class="adm-side-foot-n">Michal</span><span class="adm-side-foot-r">owner</span></span></div></aside><div class="prod-head"><h1>Produkty</h1><a class="btn-p" href="/admin/products.php#prod-editor">+ Přidat produkt</a></div><form method="get" class="prod-filter"><input type="search" name="q" value="" placeholder="Hledat název nebo agenturu…" class="pf-search"><select name="agency"><option value="0" selected>Všechny agentury</option><option value="1">Big Bus</option><option value="2">Mozart Concerts</option><option value="3">Prague Boats</option></select><select name="cat"><option value="0" selected>Všechny kategorie</option><option value="1">Okružní jízdy</option><option value="2">Koncerty</option><option value="3">Plavby</option></select><select name="cont"><option value="" selected>Kontingent: vše</option><option value="1">Má kontingent</option><option value="0">Na rezervaci</option></select><select name="pickup"><option value="" selected>Svoz: vše</option><option value="1">Se svozem</option><option value="0">Bez svozu</option></select><select name="status"><option value="" selected>Stav: vše</option><option value="active">Aktivní</option><option value="inactive">Neaktivní</option><option value="archived">Archivované</option></select><select name="sort"><option value="name" selected>Název A–Z</option><option value="agency">Podle agentury</option><option value="new">Naposledy přidané</option></select><button type="submit" class="btn-p">Filtrovat</button></form><div class="pf-count muted">Zobrazeno: 5</div><form method="post" id="bulkform" class="bulk-bar"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="bulk"><span class="bulk-l">Hromadně s vybranými:</span><button type="submit" name="bulk" value="activate" class="btn-s">Aktivovat</button><button type="submit" name="bulk" value="deactivate" class="btn-g">Deaktivovat</button></form><table class="table ptab"><thead><tr><th class="cbcell"></th><th>Produkt</th><th>Agentura</th><th>Rozvrh</th><th>Délka</th><th>Stav</th><th></th></tr></thead><tbody><tr><td class="cbcell"><input type="checkbox" name="ids[]" value="35" form="bulkform"></td><td class="ptab-prod"><span class="pthumb-empty"></span><div class="ptab-prodn"><span class="pin-star" title="Oblíbené">★</span> Big Bus Essential 24h<div class="tags"><span class="tag">Okružní jízdy</span></div></div></td><td>Big Bus</td><td class="muted">průběžně</td><td class="mono">1440 min</td><td><span class="chip chip-ok">active</span></td><td class="ptab-actcell"><div class="rowacts"><a class="btn-s" href="?edit=35#prod-editor">Upravit</a><a class="btn-s" href="/admin/pricing.php?product=35">Ceny</a><details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary><div class="rowmenu-pop"><a class="rowmenu-i" href="/admin/schedules.php?product=35">Rozvrh</a><a class="rowmenu-i" href="/product.php?id=35" target="_blank" rel="noopener">Náhled ↗</a><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="35"><button class="rowmenu-i" type="submit">Duplikovat</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="35"><button class="rowmenu-i" type="submit">Odepnout z oblíbených</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="35"><button class="rowmenu-i" type="submit">Deaktivovat</button></form><a class="rowmenu-i rowmenu-i--danger" href="?delete=35">Smazat…</a></div></details></div></td></tr><tr><td class="cbcell"><input type="checkbox" name="ids[]" value="36" form="bulkform"></td><td class="ptab-prod"><span class="pthumb-empty"></span><div class="ptab-prodn">Mozart Dinner · Gold<div class="tags"><span class="tag">Koncerty</span><span class="flag-warn" title="Produkt nemá nastavenou aktivní cenu">bez ceny</span><span class="flag-info" title="Produkt s pevnými odjezdy nemá nastavený rozvrh (časy)">bez rozvrhu</span></div></div></td><td>Mozart Concerts</td><td class="muted">pevný čas denně</td><td class="mono">180 min</td><td><span class="chip chip-ok">active</span></td><td class="ptab-actcell"><div class="rowacts"><a class="btn-s" href="?edit=36#prod-editor">Upravit</a><a class="btn-s" href="/admin/pricing.php?product=36">Ceny</a><details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary><div class="rowmenu-pop"><a class="rowmenu-i" href="/admin/schedules.php?product=36">Rozvrh</a><a class="rowmenu-i" href="/product.php?id=36" target="_blank" rel="noopener">Náhled ↗</a><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="36"><button class="rowmenu-i" type="submit">Duplikovat</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="36"><button class="rowmenu-i" type="submit">Připnout do oblíbených</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="36"><button class="rowmenu-i" type="submit">Deaktivovat</button></form><a class="rowmenu-i rowmenu-i--danger" href="?delete=36">Smazat…</a></div></details></div></td></tr><tr><td class="cbcell"><input type="checkbox" name="ids[]" value="37" form="bulkform"></td><td class="ptab-prod"><span class="pthumb-empty"></span><div class="ptab-prodn"><span class="pin-star" title="Oblíbené">★</span> Vltava Evening Cruise<div class="tags"><span class="tag">Plavby</span><span class="flag-info" title="Produkt s pevnými odjezdy nemá nastavený rozvrh (časy)">bez rozvrhu</span></div></div></td><td>Prague Boats</td><td class="muted">více časů denně</td><td class="mono">120 min</td><td><span class="chip chip-ok">active</span></td><td class="ptab-actcell"><div class="rowacts"><a class="btn-s" href="?edit=37#prod-editor">Upravit</a><a class="btn-s" href="/admin/pricing.php?product=37">Ceny</a><details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary><div class="rowmenu-pop"><a class="rowmenu-i" href="/admin/schedules.php?product=37">Rozvrh</a><a class="rowmenu-i" href="/product.php?id=37" target="_blank" rel="noopener">Náhled ↗</a><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="37"><button class="rowmenu-i" type="submit">Duplikovat</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="37"><button class="rowmenu-i" type="submit">Odepnout z oblíbených</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="37"><button class="rowmenu-i" type="submit">Deaktivovat</button></form><a class="rowmenu-i rowmenu-i--danger" href="?delete=37">Smazat…</a></div></details></div></td></tr><tr><td class="cbcell"><input type="checkbox" name="ids[]" value="38" form="bulkform"></td><td class="ptab-prod"><span class="pthumb-empty"></span><div class="ptab-prodn">Range Shooting<div class="tags"><span class="flag-warn" title="Produkt nemá nastavenou aktivní cenu">bez ceny</span></div></div></td><td>Magical Prague</td><td class="muted">na vyžádání</td><td class="mono">90 min</td><td><span class="chip chip-muted">inactive</span></td><td class="ptab-actcell"><div class="rowacts"><a class="btn-s" href="?edit=38#prod-editor">Upravit</a><a class="btn-s" href="/admin/pricing.php?product=38">Ceny</a><details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary><div class="rowmenu-pop"><a class="rowmenu-i" href="/admin/schedules.php?product=38">Rozvrh</a><a class="rowmenu-i" href="/product.php?id=38" target="_blank" rel="noopener">Náhled ↗</a><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="38"><button class="rowmenu-i" type="submit">Duplikovat</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="38"><button class="rowmenu-i" type="submit">Připnout do oblíbených</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="38"><button class="rowmenu-i" type="submit">Aktivovat</button></form><a class="rowmenu-i rowmenu-i--danger" href="?delete=38">Smazat…</a></div></details></div></td></tr><tr><td class="cbcell"><input type="checkbox" name="ids[]" value="39" form="bulkform"></td><td class="ptab-prod"><span class="pthumb-empty"></span><div class="ptab-prodn">Old Town Walking Tour<div class="tags"><span class="flag-warn" title="Produkt nemá nastavenou aktivní cenu">bez ceny</span><span class="flag-info" title="Produkt s pevnými odjezdy nemá nastavený rozvrh (časy)">bez rozvrhu</span></div></div></td><td>Prague Boats</td><td class="muted">týdenní vzor</td><td class="mono">150 min</td><td><span class="chip chip-bad">archived</span></td><td class="ptab-actcell"><div class="rowacts"><a class="btn-s" href="?edit=39#prod-editor">Upravit</a><a class="btn-s" href="/admin/pricing.php?product=39">Ceny</a><details class="rowmenu"><summary class="rowmenu-btn" title="Další akce">⋯</summary><div class="rowmenu-pop"><a class="rowmenu-i" href="/admin/schedules.php?product=39">Rozvrh</a><a class="rowmenu-i" href="/product.php?id=39" target="_blank" rel="noopener">Náhled ↗</a><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="duplicate"><input type="hidden" name="id" value="39"><button class="rowmenu-i" type="submit">Duplikovat</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="feature"><input type="hidden" name="id" value="39"><button class="rowmenu-i" type="submit">Připnout do oblíbených</button></form><form method="post" class="rowmenu-f"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="39"><button class="rowmenu-i" type="submit">Aktivovat</button></form><a class="rowmenu-i rowmenu-i--danger" href="?delete=39">Smazat…</a></div></details></div></td></tr></tbody></table><div class="adm-editor" id="prod-editor"><div class="adm-editor-head"><h3>Přidat <em>produkt</em></h3></div><form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="T"><input type="hidden" name="do" value="save"><input type="hidden" name="id" value="0"><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">1</span><div class="adm-card-ht"><div class="adm-card-title">Základ produktu</div><div class="adm-card-sub">Identita, jazyky, kategorie, rozvrh</div></div></div><div class="adm-card-body"><div class="grid-2"><div class="field"><label>Název (CS)</label><input name="name_cs" value=""></div><div class="field"><label>Agentura</label><select name="agency_id"><option value="1">Big Bus</option><option value="2">Mozart Concerts</option><option value="3">Prague Boats</option></select></div><div class="field"><label>Název (EN)</label><input name="name_en" value=""></div><div class="field"><label>Název (DE)</label><input name="name_de" value=""></div><div class="field fld-wide"><label>Jazyky (tour + audio)</label><input name="languages" value="" placeholder="např. EN, DE  /  audio průvodce 16 jazyků"></div></div><div class="field"><label>Jazyky výkladu (objednatelné)</label><div class="checklist"><label><input type="checkbox" name="language_options[]" value="en">Angličtina</label><label><input type="checkbox" name="language_options[]" value="de">Němčina</label><label><input type="checkbox" name="language_options[]" value="fr">Francouzština</label><label><input type="checkbox" name="language_options[]" value="es">Španělština</label><label><input type="checkbox" name="language_options[]" value="it">Italština</label><label><input type="checkbox" name="language_options[]" value="ru">Ruština</label></div><div class="inline-note">Jazyky průvodce, které si turista může u tohoto výletu / okružní jízdy objednat. Prázdné = produkt jazyk neřeší. Prodejci se zobrazí jako volba a propíše se na voucher. (Pozn.: pole „Jazyky (tour + audio)" výše je jen popisný text.)</div></div><div class="field"><label>Kategorie</label><div class="checklist"><label><input type="checkbox" name="categories[]" value="1">Okružní jízdy</label><label><input type="checkbox" name="categories[]" value="2">Koncerty</label><label><input type="checkbox" name="categories[]" value="3">Plavby</label></div></div><div class="grid-2"><div class="field"><label>Délka (min)</label><input name="duration_minutes" class="mono" value=""></div><div class="field"><label>Typ rozvrhu</label><select name="schedule_type"><option value="continuous">průběžně</option><option value="fixed_daily">pevný čas denně</option><option value="multiple_daily">více časů denně</option><option value="weekly_pattern">týdenní vzor</option><option value="seasonal">sezónní</option><option value="specific_dates">konkrétní termíny</option><option value="on_demand" selected>na vyžádání</option></select></div><div class="field"><label>Uplatnění voucheru</label><select name="voucher_redemption_type"><option value="direct_entry" selected>přímý vstup</option><option value="box_office_exchange">výměna v pokladně</option><option value="bus_activation">aktivace v busu</option><option value="agency_call">volat agenturu</option></select></div><div class="field"><label>Typ tiketu</label><select name="ticket_type"><option value="open">otevřený (bez data)</option><option value="date_required" selected>s konkrétním datem</option></select></div></div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">2</span><div class="adm-card-ht"><div class="adm-card-title">Obrázek produktu</div><div class="adm-card-sub">Promo foto z letáku</div></div></div><div class="adm-card-body"><div class="inline-note mb-10">Zatím bez obrázku.</div><div class="field"><label>Nahrát / nahradit (JPG, PNG, WEBP, max 6 MB)</label><input type="file" name="image" accept="image/jpeg,image/png,image/webp"></div><div class="inline-note">Zobrazí se prodejci v detailu produktu pro vizuální kontrolu proti letáku, který drží zákazník.</div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">3</span><div class="adm-card-ht"><div class="adm-card-title">Vyzvednutí</div><div class="adm-card-sub">Pickup / svoz z hotelu</div></div></div><div class="adm-card-body"><div class="switches"><label><input type="checkbox" name="pickup_available">Dostupné</label><label><input type="checkbox" name="pickup_required">Povinné</label><label><input type="checkbox" name="pickup_free" checked>Zdarma</label></div><div class="grid-2 mt-12"><div class="field"><label>Okno vyzvednutí (min)</label><input name="pickup_window_minutes" class="mono" value=""></div><div class="field"><label>Potvrzení vyzvednutí</label><select name="pickup_confirmation"><option value="">—</option><option value="fixed">pevné</option><option value="tbc_agency">potvrdí agentura</option></select></div></div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">4</span><div class="adm-card-ht"><div class="adm-card-title">Provize a bonus</div><div class="adm-card-sub">Náš zisk + bonus prodejce</div></div></div><div class="adm-card-body"><div class="grid-2"><div class="field"><label>Provize firmy % (náš zisk)</label><input name="commission_pct" class="mono" value="" placeholder="zdědí z agentury"></div><div class="field"><label>Bonus prodejce % (z marže)</label><input name="seller_bonus_pct" class="mono" value="" placeholder="výchozí 10"></div></div><div class="inline-note">Prázdné = zdědí (provize z agentury, bonus 10 %). Lze přepsat i u konkrétní cenové verze. Sleva prodejce jde z naší provize a krátí i jeho bonus.</div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">5</span><div class="adm-card-ht"><div class="adm-card-title">Popis</div><div class="adm-card-sub">CS · EN · DE</div></div></div><div class="adm-card-body"><div class="field"><label>Popis (CS)</label><textarea name="description_cs" class="ta-tall"></textarea></div><div class="grid-2"><div class="field"><label>Popis (EN)</label><textarea name="description_en" class="ta-tall"></textarea></div><div class="field"><label>Popis (DE)</label><textarea name="description_de" class="ta-tall"></textarea></div></div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">6</span><div class="adm-card-ht"><div class="adm-card-title">Jak objednat</div><div class="adm-card-sub">Prodejní detail, když není kontingent</div></div></div><div class="adm-card-body"><label class="switches mb-10"><input type="checkbox" name="has_contingent"> Má kontingent (skryje blok „Jak objednat")</label><div class="field"><label>Instrukce k objednání (přepíše agenturní default)</label><textarea name="order_instructions" placeholder="prázdné = zdědí z agentury"></textarea></div><div class="field"><label>Odkaz na program / rezervaci (URL)</label><input name="booking_url" value="" placeholder="https://…"></div><div class="inline-note">Telefon/helpline se bere z kontaktu agentury. Blok se prodejci ukáže jen u produktů bez kontingentu.</div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">7</span><div class="adm-card-ht"><div class="adm-card-title">Záloha</div><div class="adm-card-sub">Deposit — přepis z provize</div></div></div><div class="adm-card-body"><div class="inline-note">Záloha = naše provize (počítá se z % provize). Tady ji volitelně přepíšeš na pevnou částku na osobu. Prázdné = z provize. Volba zálohy se u prodeje objeví jen u agentur s deposit modelem.</div><div class="grid-2"><div class="field"><label>Fixní záloha / os. (Kč)</label><input name="deposit_fixed_czk" class="mono" value="" placeholder="z provize"></div><div class="field"><label>Fixní záloha / os. (€)</label><input name="deposit_fixed_eur" class="mono" value="" placeholder="z provize"></div></div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">8</span><div class="adm-card-ht"><div class="adm-card-title">Místo srazu</div><div class="adm-card-sub">Adresa, mapa, varianty — na voucher</div></div></div><div class="adm-card-body"><div class="field"><label>Adresa místa srazu / konání</label><input name="meeting_point_address" value="" placeholder="např. Rašínovo nábřeží 2, Praha 2"></div><div class="field"><label>Odkaz na mapu (volitelně; jinak se vytvoří z adresy)</label><input name="map_url" value="" placeholder="https://maps.google.com/…"></div><div class="field"><label>Poznámka k místu srazu (pokyn pod adresou)</label><input name="meeting_point_note" value="" placeholder="např. Dostavte se 15 min předem; hledejte stojan PTI."></div><div class="field"><label>Varianty místa srazu (volitelně, jedna na řádek: Popisek||Adresa) — prodejce vybere při prodeji</label><textarea name="meeting_options" rows="2" placeholder="Stop A||Staroměstské nám.&#10;Stop B||nám. Republiky 3"></textarea></div></div></section><section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">9</span><div class="adm-card-ht"><div class="adm-card-title">Obsah voucheru</div><div class="adm-card-sub">Sezení, doplňky, v ceně, info</div></div></div><div class="adm-card-body"><div class="field"><label><input type="checkbox" name="seating" value="1"> Vstupenka se sezením (koncert/divadlo) – na prodejním místě lze zadat řadu/sedadla; prázdné = volné sezení</label></div><div class="field"><label>Doplňky / addony (volitelné, jeden na řádek: Popisek|cena Kč|cena € — cena za osobu)</label><textarea name="addons" rows="3" class="ta-tall" placeholder="Special main course (upgrade)|75|3&#10;Hotel transfer (return minibus)|300|12"></textarea></div><div class="grid-2"><div class="field"><label>V ceně (jedna položka na řádek)</label><textarea name="included" rows="3" class="ta-tall" placeholder="Vstupné&#10;Audioprůvodce&#10;Anglicky mluvící průvodce"></textarea></div><div class="field"><label>Není v ceně (jedna položka na řádek)</label><textarea name="excluded" rows="3" class="ta-tall" placeholder="Spropitné&#10;Svoz z hotelu&#10;Jídlo a nápoje"></textarea></div></div><div class="field"><label>Vezměte s sebou (jedna položka na řádek)</label><textarea name="what_to_bring" rows="2" placeholder="Tento voucher&#10;Doklad totožnosti"></textarea></div><div class="field"><label>Důležité informace (omezení, dress code, přístupnost…)</label><textarea name="important_info" rows="2"></textarea></div><div class="field"><label>Storno podmínky</label><input name="cancellation_policy" value="" placeholder="např. Bezplatné storno do 24 h před začátkem; poté nevratné."></div><div class="inline-note">Zobrazí se na PDF voucheru i s QR kódem na Google Maps.</div></div></section><div class="adm-savebar"><a class="btn-g" href="/admin/products.php">Zrušit</a><span class="adm-savebar-info">Nový produkt — vyplň aspoň <b>název</b> a <b>agenturu</b></span><button type="submit" name="after" value="stay" class="btn-p">Vytvořit</button><button type="submit" name="after" value="close" class="btn-s">Uložit a zavřít</button></div></form></div><p class="inline-note mt-18">Ceny a <strong>cenové dimenze</strong> (varianta, sezóna, velikost skupiny…) přidáme produktu v dalším kroku, až postavíme cenové schéma.</p></main></body></html>
