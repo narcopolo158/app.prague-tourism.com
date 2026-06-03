@@ -115,11 +115,24 @@
     if (hasQty) {
       root.querySelectorAll('.qrow').forEach(function (r) {
         var qp = {}; try { qp = JSON.parse(r.getAttribute('data-qpos') || '{}'); } catch (e) {}
-        var inp = r.querySelector('input[data-qcell]'); var q = Math.max(0, parseInt(inp && inp.value, 10) || 0);
+        var inp = r.querySelector('input[data-qcell]');
         var k = keyFor(qp); var px = k !== null ? prices[k] : undefined;
         var prEl = r.querySelector('[data-qprice]');
-        if (prEl) prEl.innerHTML = px ? (fmt(px.c) + ' Kč' + (px.e != null ? ' <small>/ ' + fmt(px.e) + ' €</small>' : '')) : '—';
-        if (q > 0 && px) { totalC += px.c * q; if (px.e != null) totalE += px.e * q; else anyE = false; totalQ += q; lines.push({ l: r.getAttribute('data-label') || '', q: q, c: px.c * q }); }
+        var stepBtns = r.querySelectorAll('[data-qstep]');
+        if (!px) {
+          // tento typ osoby není ve zvolené variantě nabízen → zákaz + zašednutí
+          r.classList.add('qrow--off');
+          if (inp) { inp.value = '0'; inp.disabled = true; }
+          stepBtns.forEach(function (b) { b.disabled = true; });
+          if (prEl) prEl.innerHTML = '<span class="pdx-x" title="V této variantě není nabízeno">\u2715</span>';
+          return;
+        }
+        r.classList.remove('qrow--off');
+        if (inp) inp.disabled = false;
+        stepBtns.forEach(function (b) { b.disabled = false; });
+        var q = Math.max(0, parseInt(inp && inp.value, 10) || 0);
+        if (prEl) prEl.innerHTML = fmt(px.c) + ' Kč' + (px.e != null ? ' <small>/ ' + fmt(px.e) + ' €</small>' : '');
+        if (q > 0) { totalC += px.c * q; if (px.e != null) totalE += px.e * q; else anyE = false; totalQ += q; lines.push({ l: r.getAttribute('data-label') || '', q: q, c: px.c * q }); }
       });
       if (outUnit) outUnit.textContent = totalQ > 0 ? (totalQ + ' ks') : '';
     } else {
@@ -176,17 +189,32 @@
   var hint = document.querySelector('[data-sched-hint]');
   if (!dateEl || !sel) return;
 
+  var lf = data && data.langFilter;
+  function selLang() {
+    if (!lf) return null;
+    var c = document.querySelector('input[name="dim_' + lf.dim + '"]:checked');
+    return c ? (lf.map[c.value] || null) : null;
+  }
+
   function iso(dstr) { var d = new Date(dstr + 'T00:00:00'); if (isNaN(d.getTime())) return 0; return ((d.getDay() + 6) % 7) + 1; }
   function allowed(dstr) {
     var wd = iso(dstr), out = {}, i, j, r;
     for (i = 0; i < sched.rules.length; i++) {
       r = sched.rules[i];
-      if (r.from && dstr < r.from) continue;
-      if (r.to && dstr > r.to) continue;
+      if (r.from || r.to) {
+        var md = dstr.slice(5), mf = r.from ? r.from.slice(5) : null, mt = r.to ? r.to.slice(5) : null, inS = true;
+        if (mf !== null && mt !== null) { inS = (mf <= mt) ? (md >= mf && md <= mt) : (md >= mf || md <= mt); }
+        else if (mf !== null) { inS = md >= mf; }
+        else if (mt !== null) { inS = md <= mt; }
+        if (!inS) continue;
+      }
       if (r.days && r.days.length && r.days.indexOf(wd) === -1) continue;
       for (j = 0; j < (r.times || []).length; j++) out[r.times[j]] = true;
     }
-    return Object.keys(out).sort();
+    var keys = Object.keys(out).sort();
+    var lc = selLang();
+    if (lc) keys = keys.filter(function (t) { return t.indexOf('(' + lc + ')') !== -1; });
+    return keys;
   }
   function fill() {
     var prev = sel.value, times = allowed(dateEl.value);
@@ -205,6 +233,7 @@
     }
   }
   dateEl.addEventListener('change', fill);
+  if (lf) { var ls = document.querySelectorAll('input[name="dim_' + lf.dim + '"]'); for (var z = 0; z < ls.length; z++) { ls[z].addEventListener('change', fill); } }
   fill();
 })();
 
@@ -384,4 +413,239 @@
       el.hidden = !t.checked;
     });
   });
+})();
+
+/* "+ Rychlý prodej" button focuses the search (full overlay comes later) */
+(function () {
+  'use strict';
+  var qbtn = document.querySelector('[data-dash-quick]');
+  var search = document.querySelector('[data-dash-search]');
+  if (!qbtn || !search) return;
+  qbtn.addEventListener('click', function () { search.focus(); search.select(); });
+})();
+
+/* quick-sale: product.php?quick=1 preselects 1 on the first quantity row and
+   scrolls to the price box, so a favorite sells in ~1 click. */
+(function () {
+  'use strict';
+  if (!/[?&]quick=1(?:&|$)/.test(location.search)) return;
+  var root = document.querySelector('[data-builder]'); if (!root) return;
+  var inp = root.querySelector('.qrow input[data-qcell]') || root.querySelector('[data-qty]');
+  if (inp) {
+    inp.value = inp.hasAttribute('data-qty') ? String(Math.max(1, parseInt(inp.value, 10) || 1)) : '1';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  var side = root.querySelector('.pdx-side') || root.querySelector('[data-out-czk]');
+  if (side && side.scrollIntoView) { side.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+})();
+
+/* ============================================================
+   PTI — app.js doplněk: dirty-stav editoru produktu (volitelné)
+   Vlož tento blok do assets/app.js. CSP-safe: žádný inline JS,
+   navěšuje se z externího souboru. Bez tohoto JS editor funguje
+   normálně — savebar jen nezobrazí živé počítadlo změn.
+
+   Aby se app.js na adminu vůbec načetl, musí View::shell pro admin
+   stránky předat ['js' => true] (viz poznámka v changelogu).
+   ============================================================ */
+(function () {
+  'use strict';
+  function initProductEditorDirty() {
+    var editor = document.getElementById('prod-editor');
+    if (!editor) return;
+    var form = editor.querySelector('form');
+    var info = editor.querySelector('.adm-savebar-info');
+    if (!form || !info) return;
+
+    var baseInfo = info.innerHTML;            // původní text (Upravuješ #… / Nový produkt…)
+    var fields = form.querySelectorAll('input, select, textarea');
+    var initial = new Map();
+    var submitting = false;
+
+    function snapshot(el) {
+      if (el.type === 'checkbox' || el.type === 'radio') return el.checked ? '1' : '0';
+      if (el.type === 'file') return '';      // file inputy neumíme porovnat hodnotou
+      return el.value;
+    }
+    fields.forEach(function (el) {
+      if (!el.name) return;
+      initial.set(el, snapshot(el));
+    });
+
+    function recompute() {
+      var dirtyEls = [];
+      initial.forEach(function (val, el) {
+        if (el.type === 'file') { if (el.files && el.files.length) dirtyEls.push(el); return; }
+        if (snapshot(el) !== val) dirtyEls.push(el);
+      });
+      // zvýrazni karty, kde je změna
+      editor.querySelectorAll('.adm-card.is-dirty').forEach(function (c) { c.classList.remove('is-dirty'); });
+      dirtyEls.forEach(function (el) {
+        var card = el.closest('.adm-card');
+        if (card) card.classList.add('is-dirty');
+      });
+      var n = dirtyEls.length;
+      if (n === 0) { info.innerHTML = baseInfo; }
+      else {
+        var word = (n === 1) ? 'neuložená změna' : (n < 5 ? 'neuložené změny' : 'neuložených změn');
+        info.innerHTML = '\u25CF <b>' + n + '</b> ' + word;
+      }
+    }
+
+    form.addEventListener('input', recompute);
+    form.addEventListener('change', recompute);
+    form.addEventListener('submit', function () { submitting = true; });
+
+    window.addEventListener('beforeunload', function (ev) {
+      if (submitting) return;
+      var dirty = false;
+      initial.forEach(function (val, el) {
+        if (el.type === 'file') { if (el.files && el.files.length) dirty = true; return; }
+        if (snapshot(el) !== val) dirty = true;
+      });
+      if (dirty) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initProductEditorDirty);
+  } else {
+    initProductEditorDirty();
+  }
+})();
+
+/* ============================================================
+   CSP-safe potvrzení: <form data-confirm="…"> přeruší submit,
+   pokud uživatel nepotvrdí. Náhrada inline onsubmit="confirm()".
+   ============================================================ */
+(function () {
+  'use strict';
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('form[data-confirm]');
+    if (!f) return;
+    if (!window.confirm(f.getAttribute('data-confirm') || 'Opravdu pokračovat?')) {
+      e.preventDefault();
+    }
+  });
+})();
+
+/* ============================================================
+   PTI — Matice cen (admin/matrix.php). Hook: [data-matrix].
+   - dirty: zvýrazní změněné buňky + počítá je (savebar/chip)
+   - bulk:  [data-mtx-bulk] = pct | round | eur | clear (nad VIDITELNÝMI buňkami)
+   - klávesy: ↑/↓/Enter posun mezi Kč poli, Esc zruší fokus
+   Pracuje jen s existujícími inputy (name=czk[]/eur[]) a odesílá je
+   stávajícím <form>. Nemění datové toky.
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.querySelector('[data-matrix]');
+  if (!root) return;
+  var rate = parseFloat(root.getAttribute('data-rate')) || 25;
+
+  var cells = Array.prototype.slice.call(root.querySelectorAll('.mtx-cell'));
+  if (!cells.length) return;
+
+  function czkOf(cell) { return cell.querySelector('input[name="czk[]"]'); }
+  function eurOf(cell) { return cell.querySelector('input[name="eur[]"]'); }
+  function isVisible(cell) {
+    var panel = cell.closest('.mtx-panel');
+    if (panel && !panel.classList.contains('on')) return false;
+    return cell.offsetParent !== null;
+  }
+  function fmt(n) {
+    if (!isFinite(n)) return '';
+    var s = (Math.round(n * 100) / 100).toFixed(2);
+    return s.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  }
+  function parse(v) {
+    v = String(v == null ? '' : v).replace(/\s|\u00a0/g, '').replace(',', '.');
+    return v === '' || isNaN(parseFloat(v)) ? null : parseFloat(v);
+  }
+
+  // snapshot
+  var initial = new Map();
+  cells.forEach(function (cell) {
+    var c = czkOf(cell), e = eurOf(cell);
+    initial.set(cell, (c ? c.value : '') + '\u001f' + (e ? e.value : ''));
+  });
+
+  var chip = root.querySelector('[data-mtx-count]');
+  var savebarInfo = document.querySelector('.adm-savebar-info');
+  var baseInfo = savebarInfo ? savebarInfo.innerHTML : '';
+
+  function recount() {
+    var n = 0;
+    cells.forEach(function (cell) {
+      var c = czkOf(cell), e = eurOf(cell);
+      var now = (c ? c.value : '') + '\u001f' + (e ? e.value : '');
+      var changed = now !== initial.get(cell);
+      cell.classList.toggle('is-changed', changed);
+      if (changed) n++;
+    });
+    if (chip) {
+      if (n > 0) { chip.hidden = false; chip.textContent = n + (n === 1 ? ' buňka upravena' : (n < 5 ? ' buňky upraveno' : ' buněk upraveno')); }
+      else { chip.hidden = true; }
+    }
+    if (savebarInfo) {
+      savebarInfo.innerHTML = n > 0
+        ? '\u25CF <b>' + n + '</b> ' + (n === 1 ? 'buňka upravena' : (n < 5 ? 'buňky upraveno' : 'buněk upraveno'))
+        : baseInfo;
+    }
+  }
+  root.addEventListener('input', recount);
+  root.addEventListener('change', recount);
+
+  // ---- bulk (jen viditelné buňky) ----
+  function visibleCells() { return cells.filter(isVisible); }
+  function fire(inp) { inp.dispatchEvent(new Event('input', { bubbles: true })); }
+
+  root.querySelectorAll('[data-mtx-bulk]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var act = btn.getAttribute('data-mtx-bulk');
+      var vc = visibleCells();
+      if (act === 'pct') {
+        var p = parseFloat((window.prompt('Změnit Kč i € o kolik %? (např. -10 nebo 5)', '') || '').replace(',', '.'));
+        if (isNaN(p)) return;
+        vc.forEach(function (cell) {
+          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
+          if (cv != null) c.value = fmt(cv * (1 + p / 100));
+          var ev = parse(e && e.value); if (ev != null) e.value = fmt(ev * (1 + p / 100));
+        });
+      } else if (act === 'round') {
+        var step = parseInt(window.prompt('Zaokrouhlit Kč nahoru na násobek? (10 / 50 / 100)', '10') || '0', 10);
+        if (!step) return;
+        vc.forEach(function (cell) { var c = czkOf(cell), cv = parse(c && c.value); if (cv != null) c.value = fmt(Math.ceil(cv / step) * step); });
+      } else if (act === 'eur') {
+        vc.forEach(function (cell) {
+          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
+          if (cv != null && e && parse(e.value) == null) e.value = fmt(Math.round(cv / rate));
+        });
+      } else if (act === 'clear') {
+        if (!window.confirm('Vyčistit ' + vc.length + ' viditelných buněk?')) return;
+        vc.forEach(function (cell) { var c = czkOf(cell), e = eurOf(cell); if (c) c.value = ''; if (e) e.value = ''; });
+      }
+      var first = vc[0] && czkOf(vc[0]); if (first) fire(first); else recount();
+    });
+  });
+
+  // ---- klávesová navigace mezi Kč poli ----
+  function czkInputs() { return visibleCells().map(czkOf).filter(Boolean); }
+  root.addEventListener('focusin', function (e) {
+    if (e.target.matches && e.target.matches('input[name="czk[]"]')) e.target.classList.add('mtx-here');
+  });
+  root.addEventListener('focusout', function (e) {
+    if (e.target.classList) e.target.classList.remove('mtx-here');
+  });
+  root.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (!(t.matches && t.matches('input[name="czk[]"]'))) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
+    var list = czkInputs(); var i = list.indexOf(t); if (i === -1) return;
+    e.preventDefault();
+    var j = (e.key === 'ArrowUp') ? i - 1 : i + 1;
+    if (list[j]) { list[j].focus(); list[j].select(); }
+  });
+
+  recount();
 })();

@@ -1,0 +1,142 @@
+--- pk/code/assets/app.js	2026-06-03 18:30:12.000000000 +0000
++++ out/code/assets/app.js	2026-06-03 18:36:33.601000900 +0000
+@@ -513,3 +513,139 @@
+     initProductEditorDirty();
+   }
+ })();
++
++/* ============================================================
++   CSP-safe potvrzení: <form data-confirm="…"> přeruší submit,
++   pokud uživatel nepotvrdí. Náhrada inline onsubmit="confirm()".
++   ============================================================ */
++(function () {
++  'use strict';
++  document.addEventListener('submit', function (e) {
++    var f = e.target.closest('form[data-confirm]');
++    if (!f) return;
++    if (!window.confirm(f.getAttribute('data-confirm') || 'Opravdu pokračovat?')) {
++      e.preventDefault();
++    }
++  });
++})();
++
++/* ============================================================
++   PTI — Matice cen (admin/matrix.php). Hook: [data-matrix].
++   - dirty: zvýrazní změněné buňky + počítá je (savebar/chip)
++   - bulk:  [data-mtx-bulk] = pct | round | eur | clear (nad VIDITELNÝMI buňkami)
++   - klávesy: ↑/↓/Enter posun mezi Kč poli, Esc zruší fokus
++   Pracuje jen s existujícími inputy (name=czk[]/eur[]) a odesílá je
++   stávajícím <form>. Nemění datové toky.
++   ============================================================ */
++(function () {
++  'use strict';
++  var root = document.querySelector('[data-matrix]');
++  if (!root) return;
++  var rate = parseFloat(root.getAttribute('data-rate')) || 25;
++
++  var cells = Array.prototype.slice.call(root.querySelectorAll('.mtx-cell'));
++  if (!cells.length) return;
++
++  function czkOf(cell) { return cell.querySelector('input[name="czk[]"]'); }
++  function eurOf(cell) { return cell.querySelector('input[name="eur[]"]'); }
++  function isVisible(cell) {
++    var panel = cell.closest('.mtx-panel');
++    if (panel && !panel.classList.contains('on')) return false;
++    return cell.offsetParent !== null;
++  }
++  function fmt(n) {
++    if (!isFinite(n)) return '';
++    var s = (Math.round(n * 100) / 100).toFixed(2);
++    return s.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
++  }
++  function parse(v) {
++    v = String(v == null ? '' : v).replace(/\s|\u00a0/g, '').replace(',', '.');
++    return v === '' || isNaN(parseFloat(v)) ? null : parseFloat(v);
++  }
++
++  // snapshot
++  var initial = new Map();
++  cells.forEach(function (cell) {
++    var c = czkOf(cell), e = eurOf(cell);
++    initial.set(cell, (c ? c.value : '') + '\u001f' + (e ? e.value : ''));
++  });
++
++  var chip = root.querySelector('[data-mtx-count]');
++  var savebarInfo = document.querySelector('.adm-savebar-info');
++  var baseInfo = savebarInfo ? savebarInfo.innerHTML : '';
++
++  function recount() {
++    var n = 0;
++    cells.forEach(function (cell) {
++      var c = czkOf(cell), e = eurOf(cell);
++      var now = (c ? c.value : '') + '\u001f' + (e ? e.value : '');
++      var changed = now !== initial.get(cell);
++      cell.classList.toggle('is-changed', changed);
++      if (changed) n++;
++    });
++    if (chip) {
++      if (n > 0) { chip.hidden = false; chip.textContent = n + (n === 1 ? ' buňka upravena' : (n < 5 ? ' buňky upraveno' : ' buněk upraveno')); }
++      else { chip.hidden = true; }
++    }
++    if (savebarInfo) {
++      savebarInfo.innerHTML = n > 0
++        ? '\u25CF <b>' + n + '</b> ' + (n === 1 ? 'buňka upravena' : (n < 5 ? 'buňky upraveno' : 'buněk upraveno'))
++        : baseInfo;
++    }
++  }
++  root.addEventListener('input', recount);
++  root.addEventListener('change', recount);
++
++  // ---- bulk (jen viditelné buňky) ----
++  function visibleCells() { return cells.filter(isVisible); }
++  function fire(inp) { inp.dispatchEvent(new Event('input', { bubbles: true })); }
++
++  root.querySelectorAll('[data-mtx-bulk]').forEach(function (btn) {
++    btn.addEventListener('click', function () {
++      var act = btn.getAttribute('data-mtx-bulk');
++      var vc = visibleCells();
++      if (act === 'pct') {
++        var p = parseFloat((window.prompt('Změnit Kč i € o kolik %? (např. -10 nebo 5)', '') || '').replace(',', '.'));
++        if (isNaN(p)) return;
++        vc.forEach(function (cell) {
++          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
++          if (cv != null) c.value = fmt(cv * (1 + p / 100));
++          var ev = parse(e && e.value); if (ev != null) e.value = fmt(ev * (1 + p / 100));
++        });
++      } else if (act === 'round') {
++        var step = parseInt(window.prompt('Zaokrouhlit Kč nahoru na násobek? (10 / 50 / 100)', '10') || '0', 10);
++        if (!step) return;
++        vc.forEach(function (cell) { var c = czkOf(cell), cv = parse(c && c.value); if (cv != null) c.value = fmt(Math.ceil(cv / step) * step); });
++      } else if (act === 'eur') {
++        vc.forEach(function (cell) {
++          var c = czkOf(cell), e = eurOf(cell), cv = parse(c && c.value);
++          if (cv != null && e && parse(e.value) == null) e.value = fmt(Math.round(cv / rate));
++        });
++      } else if (act === 'clear') {
++        if (!window.confirm('Vyčistit ' + vc.length + ' viditelných buněk?')) return;
++        vc.forEach(function (cell) { var c = czkOf(cell), e = eurOf(cell); if (c) c.value = ''; if (e) e.value = ''; });
++      }
++      var first = vc[0] && czkOf(vc[0]); if (first) fire(first); else recount();
++    });
++  });
++
++  // ---- klávesová navigace mezi Kč poli ----
++  function czkInputs() { return visibleCells().map(czkOf).filter(Boolean); }
++  root.addEventListener('focusin', function (e) {
++    if (e.target.matches && e.target.matches('input[name="czk[]"]')) e.target.classList.add('mtx-here');
++  });
++  root.addEventListener('focusout', function (e) {
++    if (e.target.classList) e.target.classList.remove('mtx-here');
++  });
++  root.addEventListener('keydown', function (e) {
++    var t = e.target;
++    if (!(t.matches && t.matches('input[name="czk[]"]'))) return;
++    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
++    var list = czkInputs(); var i = list.indexOf(t); if (i === -1) return;
++    e.preventDefault();
++    var j = (e.key === 'ArrowUp') ? i - 1 : i + 1;
++    if (list[j]) { list[j].focus(); list[j].select(); }
++  });
++
++  recount();
++})();

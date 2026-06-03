@@ -1,0 +1,59 @@
+--- pk/code/admin/matrix.php	2026-06-03 18:30:12.000000000 +0000
++++ out/code/admin/matrix.php	2026-06-03 18:37:27.060259722 +0000
+@@ -191,18 +191,47 @@
+       . 'Pokud chceš víc cen (dospělý/dítě, sezóny…), přidej dimenze v <a href="/admin/pricing.php?product=' . $pid . '">cenách produktu</a>.</div>'
+     : '';
+ 
+-$body = View::adminNav('products')
++$statusChip = '<span class="ver-status ' . (['draft'=>'ver-draft','active'=>'ver-active','archived'=>'ver-archived'][$ver['status']] ?? 'ver-draft') . '">' . e($ver['status']) . '</span>';
++$cellWord = $cellCount === 1 ? 'buňka' : ($cellCount < 5 ? 'buňky' : 'buněk');
++
++// bulk toolbar (CSP-safe: data-mtx-bulk + inline SVG ikony; JS v app.js).
++// U jednotné ceny (n===0) nedává smysl → skryjeme.
++$ic = fn(string $d) => '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
++$toolbar = '';
++if ($n >= 1) {
++    $toolbar = '<div class="mtx-toolbar">'
++        . '<span class="mtx-toolbar-l">Hromadně</span>'
++        . '<button type="button" class="mtx-btn" data-mtx-bulk="pct">' . $ic('<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>') . ' Upravit ± %</button>'
++        . '<button type="button" class="mtx-btn" data-mtx-bulk="round">' . $ic('<path d="M12 19V6"/><path d="m6 12 6-6 6 6"/>') . ' Zaokrouhlit ↑</button>'
++        . '<button type="button" class="mtx-btn" data-mtx-bulk="eur">' . $ic('<circle cx="12" cy="12" r="9"/><path d="M15 9.3a3.5 3.5 0 0 0-5 .7 4 4 0 0 0 0 4 3.5 3.5 0 0 0 5 .7"/><path d="M7 11h5"/><path d="M7 13h5"/>') . ' € z kurzu (prázdné)</button>'
++        . '<button type="button" class="mtx-btn" data-mtx-bulk="clear">' . $ic('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6"/>') . ' Vyčistit viditelné</button>'
++        . '<span class="mtx-toolbar-r"><span class="mtx-chg" data-mtx-count hidden></span></span>'
++        . '</div>';
++}
++
++$cardSub = 'Verze <strong>' . e($ver['name']) . '</strong> · ' . $statusChip . ' · '
++    . $cellCount . ' ' . $cellWord . ' · vyplněno ' . $filled . ' · € je nepovinné';
++
++$body = View::adminNav('products', ['actor' => $a])
+     . '<div class="crumbs"><a href="/admin/products.php">Produkty</a> › <a href="/admin/pricing.php?product=' . $pid . '">' . e($ver['name_cs']) . '</a> › Matice</div>'
+-    . '<h1>Matice cen · <span class="muted h1-sub">' . e($ver['name']) . ' (' . e($ver['status']) . ')</span></h1>'
++    . '<div class="adm-editor-head"><h3>Matice cen <em>· ' . e($ver['name_cs']) . '</em></h3></div>'
+     . $msgHtml . $errHtml
+-    . '<div class="matrix-hint mb-10">' . $cellCount . ' '
+-    . ($cellCount===1?'buňka':($cellCount<5?'buňky':'buněk')) . ' · vyplněno ' . $filled
+-    . '. Prázdná buňka = cena se neuloží (kombinace neexistuje). EUR je nepovinné.</div>'
+     . $noDims
+-    . '<form method="post">' . Csrf::field() . '<input type="hidden" name="do" value="save_prices">'
+-    . $grid
+-    . '<div class="savebar"><button type="submit" class="btn-p">Uložit ceny</button>'
+-    . '<a class="btn-g" href="/admin/pricing.php?product=' . $pid . '">Zpět na ceny produktu</a></div>'
++    . '<form method="post" data-matrix data-rate="25">' . Csrf::field() . '<input type="hidden" name="do" value="save_prices">'
++    . '<section class="adm-card">'
++    . '<div class="adm-card-h">'
++    . '<span class="adm-card-no">' . $ic('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>') . '</span>'
++    . '<div class="adm-card-ht"><div class="adm-card-title">Ceny v mřížce</div>'
++    . '<div class="adm-card-sub">' . $cardSub . '</div></div>'
++    . '</div>'
++    . $toolbar
++    . '<div class="adm-card-body">' . $grid . '</div>'
++    . '</section>'
++    . '<div class="adm-savebar">'
++    . '<a class="btn-g" href="/admin/pricing.php?product=' . $pid . '">Zpět na ceny</a>'
++    . '<span class="adm-savebar-info">Verze ' . e($ver['name']) . ' · prázdná buňka = kombinace se neuloží</span>'
++    . '<button type="submit" class="btn-p">Uložit ceny</button>'
++    . '</div>'
+     . '</form>';
+ 
+ View::shell('Matice cen', $a, $body, ['subtitle'=>'administrace','logout'=>'/admin/?action=logout','js'=>true]);

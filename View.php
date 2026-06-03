@@ -128,6 +128,9 @@ final class View
 
         header('Content-Type: text/html; charset=utf-8');
         $isAdmin = ($opts['subtitle'] ?? '') === 'administrace';
+        // Admin stránky načtou app.js automaticky (moduly jsou guardované IIFE,
+        // bez svých data-hooků jsou no-op). Lze přebít explicitním ['js'=>false].
+        if ($isAdmin && !array_key_exists('js', $opts)) { $opts['js'] = true; }
         echo self::head($title, $opts)
             . '<header class="topbar">'
             . '<span class="logo"><span class="logo-mark">PTI</span> Prague Tourist Info'

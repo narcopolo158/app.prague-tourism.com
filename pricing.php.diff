@@ -1,0 +1,131 @@
+--- pk/code/admin/pricing.php	2026-06-03 18:30:12.000000000 +0000
++++ out/code/admin/pricing.php	2026-06-03 18:39:28.446056924 +0000
+@@ -107,7 +107,7 @@
+         . '<div class="dim-label">' . e($d['label']) . ' <span class="muted mono cat-sub">(' . count($vals) . ')</span></div>'
+         . '<div class="tags">' . $chips . '</div></div>'
+         . '<div class="actions"><a class="btn-s" href="?product=' . $pid . '&dim=' . (int)$d['id'] . '">Upravit</a> '
+-        . '<form method="post" class="inline-form" onsubmit="return confirm(\'Smazat dimenzi?\')">' . Csrf::field()
++        . '<form method="post" class="inline-form" data-confirm="Smazat dimenzi?">' . Csrf::field()
+         . '<input type="hidden" name="do" value="dim_delete"><input type="hidden" name="dim_id" value="' . (int)$d['id'] . '">'
+         . '<button class="btn-g" type="submit">Smazat</button></form></div></div>';
+ }
+@@ -117,7 +117,10 @@
+ $typeOpts = '';
+ foreach (DIM_TYPES as $k=>$lbl) { $typeOpts .= '<option value="'.$k.'"'.($dt===$k?' selected':'').'>'.e($lbl).'</option>'; }
+ $dimValsText = $editDim ? e(implode("\n", json_decode($editDim['values_json'], true) ?: [])) : '';
+-$dimForm = '<div class="panel col-560 mt-16"><h3>' . ($editDim?'Upravit dimenzi':'Přidat dimenzi') . '</h3>'
++$dimForm = '<section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">+</span>'
++    . '<div class="adm-card-ht"><div class="adm-card-title">' . ($editDim?'Upravit dimenzi':'Přidat dimenzi') . '</div>'
++    . '<div class="adm-card-sub">Osa ceny (varianta, sezóna, typ pasažéra…) a její hodnoty</div></div></div>'
++    . '<div class="adm-card-body">'
+     . '<form method="post">' . Csrf::field() . '<input type="hidden" name="do" value="dim_save"><input type="hidden" name="dim_id" value="' . ($editDim?(int)$editDim['id']:0) . '">'
+     . '<div class="grid-2">'
+     . '<div class="field"><label>Typ</label><select name="type">' . $typeOpts . '</select></div>'
+@@ -127,57 +130,75 @@
+     . '<div class="field"><label>Hodnoty (každá na samostatný řádek)</label><textarea name="values" class="ta-tall">' . $dimValsText . '</textarea></div>'
+     . '<button class="btn-p" type="submit">' . ($editDim?'Uložit dimenzi':'Přidat dimenzi') . '</button> '
+     . ($editDim ? '<a class="btn-g" href="?product=' . $pid . '">Zrušit</a>' : '')
+-    . '</form></div>';
++    . '</form></div></section>';
+ 
+-// ---- versions UI ----
++// ---- versions UI (karty do pravého sidebaru) ----
+ $pnz = fn($x) => $x === null || $x === '' ? '' : rtrim(rtrim(number_format((float)$x, 2, '.', ''), '0'), '.');
+ $base = Pricing::rates($pid, null);  // inherited (product → agency / default bonus)
+ $verRows = '';
+ foreach ($vers as $vv) {
+-    $cls = ['draft'=>'ver-draft','active'=>'ver-active','archived'=>'ver-archived'][$vv['status']] ?? 'ver-draft';
+-    $dates = trim(($vv['effective_from'] ?? '') . ($vv['effective_to'] ? ' – ' . $vv['effective_to'] : ''));
++    $st = $vv['status'];
++    $rowCls = $st === 'active' ? ' is-active' : ($st === 'draft' ? ' is-draft' : '');
++    $tagCls = ['draft'=>'t-draft','active'=>'t-active','archived'=>'t-archived'][$st] ?? 't-draft';
++    $tagLbl = ['draft'=>'draft','active'=>'aktivní','archived'=>'archiv'][$st] ?? $st;
++    $dates  = trim(($vv['effective_from'] ?? '') . ($vv['effective_to'] ? ' – ' . $vv['effective_to'] : ''));
+     $btns = '';
+-    foreach (['draft'=>'Draft','active'=>'Aktivovat','archived'=>'Archivovat'] as $st=>$lbl) {
+-        if ($st === $vv['status']) continue;
+-        $btns .= '<form method="post" class="inline-form">' . Csrf::field() . '<input type="hidden" name="do" value="ver_status"><input type="hidden" name="ver_id" value="' . (int)$vv['id'] . '"><input type="hidden" name="status" value="' . $st . '"><button class="btn-g" type="submit">' . $lbl . '</button></form> ';
++    foreach (['draft'=>'Draft','active'=>'Aktivovat','archived'=>'Archivovat'] as $s=>$lbl) {
++        if ($s === $st) continue;
++        $btns .= '<form method="post" class="inline-form">' . Csrf::field() . '<input type="hidden" name="do" value="ver_status"><input type="hidden" name="ver_id" value="' . (int)$vv['id'] . '"><input type="hidden" name="status" value="' . $s . '"><button class="btn-g" type="submit">' . $lbl . '</button></form>';
+     }
+-    $ovForm = '<form method="post" class="inline-form ov-form">' . Csrf::field()
++    $ovForm = '<form method="post" class="ver-ov">' . Csrf::field()
+         . '<input type="hidden" name="do" value="ver_overrides"><input type="hidden" name="ver_id" value="' . (int)$vv['id'] . '">'
++        . '<span class="ver-ov-l">prov./bonus %</span>'
+         . '<input name="commission_pct" class="mono num-mini" value="' . e($pnz($vv['commission_pct'] ?? null)) . '" placeholder="' . e($pnz($base['commission_pct'])) . '" title="Provize firmy %">'
+         . '<input name="seller_bonus_pct" class="mono num-mini" value="' . e($pnz($vv['seller_bonus_pct'] ?? null)) . '" placeholder="' . e($pnz($base['seller_bonus_pct'])) . '" title="Bonus prodejce %">'
+-        . '<button class="btn-g" type="submit">✓</button></form>';
+-    $verRows .= '<tr><td>' . e($vv['name']) . '</td>'
+-        . '<td class="mono muted">' . e($dates ?: '—') . '</td>'
+-        . '<td>' . $ovForm . '</td>'
+-        . '<td><span class="ver-status ' . $cls . '">' . e($vv['status']) . '</span></td>'
+-        . '<td class="actions"><a class="btn-s" href="/admin/matrix.php?version=' . (int)$vv['id'] . '">Upravit ceny</a> ' . $btns . '</td></tr>';
++        . '<button class="btn-g" type="submit" title="Uložit provizi/bonus">✓</button></form>';
++    $verRows .= '<div class="ver-row' . $rowCls . '">'
++        . '<div class="ver-row-h"><span class="ver-row-name">' . e($vv['name']) . '</span><span class="ver-row-tag ' . $tagCls . '">' . e($tagLbl) . '</span></div>'
++        . '<div class="ver-row-meta">' . ($dates ? e($dates) : 'bez období') . '</div>'
++        . $ovForm
++        . '<div class="ver-row-acts"><a class="btn-s" href="/admin/matrix.php?version=' . (int)$vv['id'] . '">Upravit ceny →</a>' . $btns . '</div>'
++        . '</div>';
+ }
+-if ($verRows === '') { $verRows = '<tr><td colspan="5" class="muted">zatím žádná cenová verze</td></tr>'; }
++if ($verRows === '') { $verRows = '<div class="ver-row"><div class="ver-row-meta">Zatím žádná cenová verze — vytvoř první níže.</div></div>'; }
+ 
+ $msgHtml = $msg ? '<div class="alert alert-ok">' . e($msg) . '</div>' : '';
+ $errHtml = $err ? '<div class="alert alert-err">' . e($err) . '</div>' : '';
+ 
+-$body = View::adminNav('products')
++$ic = fn(string $d) => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $d . '</svg>';
++$cellWord = (int)$cells === 1 ? 'buňka' : ((int)$cells < 5 ? 'buňky' : 'buněk');
++
++$body = View::adminNav('products', ['actor' => $a])
+     . '<div class="crumbs"><a href="/admin/products.php">Produkty</a> › Ceny</div>'
+-    . '<h1>' . e($product['name_cs']) . ' <span class="muted h1-sub">· ' . e($product['agency_name']) . '</span></h1>'
++    . '<div class="adm-editor-head"><h3>' . e($product['name_cs']) . ' <em>· ' . e($product['agency_name']) . '</em></h3></div>'
+     . $msgHtml . $errHtml
+-    . '<div class="matrix-hint">Matice bude mít <strong>' . (int)$cells . '</strong> ' . ((int)$cells === 1 ? 'buňku' : ((int)$cells < 5 ? 'buňky' : 'buněk')) . ' (součin hodnot všech dimenzí). Ceny vyplníš v editoru u konkrétní verze.</div>'
+-    . '<h2>Cenové dimenze</h2>'
+-    . '<div class="panel">' . $dimRows . '</div>'
++    . '<div class="pric-grid">'
++    // ---- levý sloupec: dimenze ----
++    . '<div class="pric-main">'
++    . '<div class="pric-formula"><span>Matice cen:</span><span class="f">' . (int)$cells . ' ' . $cellWord . '</span>'
++    . '<span class="note">součin hodnot všech dimenzí · ceny vyplníš u konkrétní verze</span></div>'
++    . '<section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">' . $ic('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>') . '</span>'
++    . '<div class="adm-card-ht"><div class="adm-card-title">Cenové dimenze</div><div class="adm-card-sub">Co určuje cenu — osy matice</div></div>'
++    . '<span class="adm-card-h-r">' . count($dims) . 'D</span></div>'
++    . '<div class="adm-card-body">' . $dimRows . '</div></section>'
+     . $dimForm
+-    . '<h2>Cenové verze</h2>'
+-    . '<table class="table"><thead><tr><th>Název</th><th>Platnost</th><th>Provize / Bonus %</th><th>Stav</th><th></th></tr></thead><tbody>' . $verRows . '</tbody></table>'
+-    . '<div class="panel col-560 mt-16"><h3>Nová verze</h3>'
++    . '</div>'
++    // ---- pravý sloupec: verze ----
++    . '<aside class="adm-rside">'
++    . '<section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">' . $ic('<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>') . '</span>'
++    . '<div class="adm-card-ht"><div class="adm-card-title">Cenové verze</div><div class="adm-card-sub">draft · aktivní · archiv (snapshot)</div></div></div>'
++    . '<div class="ver-list">' . $verRows . '</div></section>'
++    . '<section class="adm-card"><div class="adm-card-h"><span class="adm-card-no">+</span>'
++    . '<div class="adm-card-ht"><div class="adm-card-title">Nová verze</div><div class="adm-card-sub">Vytvoří se jako draft</div></div></div>'
++    . '<div class="adm-card-body">'
+     . '<form method="post">' . Csrf::field() . '<input type="hidden" name="do" value="ver_create">'
+     . '<div class="field"><label>Název</label><input name="name" placeholder="léto 2026"></div>'
+-    . '<div class="grid-2">'
+-    . '<div class="field"><label>Platí od</label><input type="date" name="effective_from"></div>'
+-    . '<div class="field"><label>Platí do</label><input type="date" name="effective_to"></div>'
+-    . '</div>'
+-    . '<div class="grid-2">'
+-    . '<div class="field"><label>Provize firmy %</label><input name="commission_pct" class="mono" placeholder="' . e($pnz($base['commission_pct'])) . ' (zděděno)"></div>'
+-    . '<div class="field"><label>Bonus prodejce %</label><input name="seller_bonus_pct" class="mono" placeholder="' . e($pnz($base['seller_bonus_pct'])) . ' (zděděno)"></div>'
+-    . '</div>'
+-    . '<button class="btn-p" type="submit">Vytvořit verzi</button></form></div>';
++    . '<div class="grid-2"><div class="field"><label>Platí od</label><input type="date" name="effective_from"></div>'
++    . '<div class="field"><label>Platí do</label><input type="date" name="effective_to"></div></div>'
++    . '<div class="grid-2"><div class="field"><label>Provize firmy %</label><input name="commission_pct" class="mono" placeholder="' . e($pnz($base['commission_pct'])) . ' (zděděno)"></div>'
++    . '<div class="field"><label>Bonus prodejce %</label><input name="seller_bonus_pct" class="mono" placeholder="' . e($pnz($base['seller_bonus_pct'])) . ' (zděděno)"></div></div>'
++    . '<button class="btn-p" type="submit">Vytvořit verzi</button></form></div></section>'
++    . '</aside>'
++    . '</div>';
+ 
+ View::shell('Ceny – ' . $product['name_cs'], $a, $body, ['subtitle'=>'administrace','logout'=>'/admin/?action=logout']);
