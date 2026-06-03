@@ -1,0 +1,29 @@
+--- fe/code/sales.php	2026-06-03 19:06:41.000000000 +0000
++++ out/code/sales.php	2026-06-03 19:18:38.139723373 +0000
+@@ -459,11 +459,17 @@
+         . '<span class="ps-row-v">' . e((string) ($s['voucher_number'] ?? ('#' . (int) $s['id']))) . '</span>'
+         . '<span class="ps-row-c">' . e((string) ($s['cname'] ?? '—')) . '</span>'
+         . '<span class="ps-row-d muted">' . e(substr((string) $s['created_at'], 0, 16)) . '</span>'
++        . '<span class="ps-row-pm">' . e($PM[$s['payment_method']] ?? '—') . '</span>'
+         . '<span class="ps-row-t">' . czk($s['total_czk']) . '</span>'
+         . st_badge((string) $s['status'], $STBADGE) . '</a>';
+ }
+ if ($list === '') { $list = '<div class="muted">Žádné prodeje.</div>'; }
+ 
++$listHdr = $sales
++    ? '<div class="ps-head-row"><span class="ps-row-v">Voucher</span><span class="ps-row-c">Zákazník</span>'
++      . '<span class="ps-row-d">Vytvořeno</span><span class="ps-row-pm">Platba</span><span class="ps-row-t">Celkem</span><span>Stav</span></div>'
++    : '';
++
+ $body = '<div class="shome-crumb"><a class="btn-g" href="/">← Dashboard</a><span>Prodeje</span></div>'
+     . $flash
+     . '<form method="get" action="/sales.php" class="ps-search">'
+@@ -471,7 +477,7 @@
+     . '<button class="btn-s" type="submit">Hledat</button>'
+     . ($q !== '' ? '<a class="btn-g" href="/sales.php">Zrušit</a>' : '')
+     . '</form>'
+-    . '<div class="panel">' . $list . '</div>';
++    . '<div class="panel">' . $listHdr . $list . '</div>';
+ 
+ View::shell('Prodeje', $a, $body,
+     ['tenant' => $tenant['name'] ?? null, 'subtitle' => 'prodejní místo', 'logout' => '/?action=logout']);

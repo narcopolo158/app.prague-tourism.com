@@ -1,0 +1,11 @@
+--- fe/code/payment.php	2026-06-03 19:06:41.000000000 +0000
++++ out/code/payment.php	2026-06-03 19:18:07.227971422 +0000
+@@ -195,7 +195,7 @@
+     . $errHtml
+     . '<form method="post" class="pay-grid"><div>' . Csrf::field() . '<input type="hidden" name="do" value="confirm">'
+     . '<div class="panel"><h3>Položky</h3>' . $rows . '</div>'
+-    . '<div class="panel mt-22"><h3>Zákazník <span class="muted" style="font-weight:400;font-size:13px">— nepovinné</span></h3>'
++    . '<div class="panel mt-22"><h3>Zákazník <span class="h3-opt">— nepovinné</span></h3>'
+     . '<div class="grid-2">'
+     . '<div class="field"><label>Jméno</label><input name="customer_name"></div>'
+     . '<div class="field"><label>E-mail</label><input name="customer_email" type="email"></div>'
