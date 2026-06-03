@@ -1,0 +1,170 @@
+--- code/admin/products.php	2026-06-03 17:47:32.000000000 +0000
++++ out/code/admin/products.php	2026-06-03 17:55:31.054811518 +0000
+@@ -316,42 +316,51 @@
+ 
+ $noAgency = $agencies ? '' : '<div class="alert alert-err">Nejdřív vytvoř aspoň jednu agenturu (záložka Agentury) – produkt musí patřit agentuře.</div>';
+ 
+-// image block (thumbnail + upload + remove)
++// image block (thumbnail + upload + remove) — tělo karty „Obrázek"
+ $curImgPath = $edit['image_path'] ?? '';
+ $thumb = $curImgPath
+     ? '<img src="/uploads/' . e($curImgPath) . '" alt="" class="pthumb-lg">'
+       . '<label class="switches mb-10"><input type="checkbox" name="remove_image"> Odebrat obrázek</label>'
+     : '<div class="inline-note mb-10">Zatím bez obrázku.</div>';
+-$imgBlock = '<div class="fieldset"><div class="lgnd">Obrázek produktu (promo foto z letáku)</div>'
+-    . $thumb
++$imgBlock = $thumb
+     . '<div class="field"><label>Nahrát / nahradit (JPG, PNG, WEBP, max 6 MB)</label>'
+     . '<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></div>'
+-    . '<div class="inline-note">Zobrazí se prodejci v detailu produktu pro vizuální kontrolu proti letáku, který drží zákazník.</div></div>';
++    . '<div class="inline-note">Zobrazí se prodejci v detailu produktu pro vizuální kontrolu proti letáku, který drží zákazník.</div>';
+ 
+-$formTitle = $edit ? ('Upravit: ' . e((string) $edit['name_cs'])) : 'Přidat produkt';
+-$form = '<div class="panel mt-22 col-820" id="prod-editor"><h3>' . $formTitle . '</h3>' . $noAgency
+-  . ($edit ? '<div class="editor-links"><a class="btn-s" href="/admin/pricing.php?product=' . (int) $edit['id'] . '">Upravit ceny</a> <a class="btn-s" href="/admin/schedules.php?product=' . (int) $edit['id'] . '">Upravit rozvrh</a> <a class="btn-g" href="/product.php?id=' . (int) $edit['id'] . '" target="_blank" rel="noopener">Náhled jako prodejce ↗</a></div>' : '')
+-  . '<form method="post" enctype="multipart/form-data">' . Csrf::field() . '<input type="hidden" name="do" value="save"><input type="hidden" name="id" value="' . ($edit?(int)$edit['id']:0) . '">'
+-  . '<div class="fieldset"><div class="lgnd">Základ produktu</div>'
+-  . '<div class="grid-2">'
++// section-card helper (vize: mockup .adm-card). $title/$sub jsou literály (smí obsahovat <em>).
++$card = function (string $no, string $title, string $sub, string $body): string {
++    return '<section class="adm-card">'
++      . '<div class="adm-card-h"><span class="adm-card-no">' . $no . '</span>'
++      . '<div class="adm-card-ht"><div class="adm-card-title">' . $title . '</div>'
++      . ($sub !== '' ? '<div class="adm-card-sub">' . $sub . '</div>' : '')
++      . '</div></div>'
++      . '<div class="adm-card-body">' . $body . '</div></section>';
++};
++
++$formTitle = $edit ? ('Upravit: <em>' . e((string) $edit['name_cs']) . '</em>') : 'Přidat <em>produkt</em>';
++$savebarInfo = $edit
++    ? 'Upravuješ <b>#' . (int) $edit['id'] . '</b> · ' . e((string) $edit['name_cs'])
++    : 'Nový produkt — vyplň aspoň <b>název</b> a <b>agenturu</b>';
++
++// --- 1) Základ produktu ---
++$c1 = '<div class="grid-2">'
+   . '<div class="field"><label>Název (CS)</label><input name="name_cs" value="'.$v('name_cs').'"></div>'
+   . '<div class="field"><label>Agentura</label><select name="agency_id">'.$agencyOpts.'</select></div>'
+   . '<div class="field"><label>Název (EN)</label><input name="name_en" value="'.$v('name_en').'"></div>'
+   . '<div class="field"><label>Název (DE)</label><input name="name_de" value="'.$v('name_de').'"></div>'
+-  . '<div class="field"><label>Jazyky (tour + audio)</label><input name="languages" value="'.$v('languages').'" placeholder="např. EN, DE  /  audio průvodce 16 jazyků"></div>'
+-  . '<div class="field"><label>Jazyky výkladu (objednatelné)</label><div class="checklist">'.$langOptChecks.'</div><div class="inline-note">Jazyky průvodce, které si turista může u tohoto výletu / okružní jízdy objednat. Prázdné = produkt jazyk neřeší. Prodejci se zobrazí jako volba a propíše se na voucher. (Pozn.: pole „Jazyky (tour + audio)" výše je jen popisný text.)</div></div>'
++  . '<div class="field fld-wide"><label>Jazyky (tour + audio)</label><input name="languages" value="'.$v('languages').'" placeholder="např. EN, DE  /  audio průvodce 16 jazyků"></div>'
+   . '</div>'
+-  . $imgBlock
++  . '<div class="field"><label>Jazyky výkladu (objednatelné)</label><div class="checklist">'.$langOptChecks.'</div><div class="inline-note">Jazyky průvodce, které si turista může u tohoto výletu / okružní jízdy objednat. Prázdné = produkt jazyk neřeší. Prodejci se zobrazí jako volba a propíše se na voucher. (Pozn.: pole „Jazyky (tour + audio)" výše je jen popisný text.)</div></div>'
+   . '<div class="field"><label>Kategorie</label><div class="checklist">'.$catChecks.'</div></div>'
+   . '<div class="grid-2">'
+   . '<div class="field"><label>Délka (min)</label><input name="duration_minutes" class="mono" value="'.$v('duration_minutes').'"></div>'
+   . '<div class="field"><label>Typ rozvrhu</label><select name="schedule_type">'.$sel(SCHEDULE,'schedule_type',(string)($edit['schedule_type']??'on_demand')).'</select></div>'
+   . '<div class="field"><label>Uplatnění voucheru</label><select name="voucher_redemption_type">'.$sel(REDEEM,'voucher_redemption_type',(string)($edit['voucher_redemption_type']??'direct_entry')).'</select></div>'
+   . '<div class="field"><label>Typ tiketu</label><select name="ticket_type">'.$sel(TICKET,'ticket_type',(string)($edit['ticket_type']??'date_required')).'</select></div>'
+-  . '</div>'
+-  . '</div>'
+-  . '<div class="fieldset"><div class="lgnd">Vyzvednutí (pickup)</div>'
+-  . '<div class="switches">'
++  . '</div>';
++
++// --- 3) Vyzvednutí ---
++$c3 = '<div class="switches">'
+   . '<label><input type="checkbox" name="pickup_available"'.$ck('pickup_available').'>Dostupné</label>'
+   . '<label><input type="checkbox" name="pickup_required"'.$ck('pickup_required').'>Povinné</label>'
+   . '<label><input type="checkbox" name="pickup_free"'.$ck('pickup_free',1).'>Zdarma</label>'
+@@ -359,49 +368,72 @@
+   . '<div class="grid-2 mt-12">'
+   . '<div class="field"><label>Okno vyzvednutí (min)</label><input name="pickup_window_minutes" class="mono" value="'.$v('pickup_window_minutes').'"></div>'
+   . '<div class="field"><label>Potvrzení vyzvednutí</label><select name="pickup_confirmation"><option value="">—</option>'.$sel(PCONF,'pickup_confirmation',(string)($edit['pickup_confirmation']??'')).'</select></div>'
+-  . '</div></div>'
+-  . '<div class="fieldset"><div class="lgnd">Provize a bonus</div>'
+-  . '<div class="grid-2">'
++  . '</div>';
++
++// --- 4) Provize a bonus ---
++$c4 = '<div class="grid-2">'
+   . '<div class="field"><label>Provize firmy % (náš zisk)</label><input name="commission_pct" class="mono" value="'.$v('commission_pct').'" placeholder="zdědí z agentury"></div>'
+   . '<div class="field"><label>Bonus prodejce % (z marže)</label><input name="seller_bonus_pct" class="mono" value="'.$v('seller_bonus_pct').'" placeholder="výchozí 10"></div>'
+   . '</div>'
+-  . '<div class="inline-note">Prázdné = zdědí (provize z agentury, bonus 10 %). Lze přepsat i u konkrétní cenové verze. Sleva prodejce jde z naší provize a krátí i jeho bonus.</div></div>'
+-  . '<div class="fieldset"><div class="lgnd">Popis</div>'
+-  . '<div class="field"><label>Popis (CS)</label><textarea name="description_cs">'.$v('description_cs').'</textarea></div>'
++  . '<div class="inline-note">Prázdné = zdědí (provize z agentury, bonus 10 %). Lze přepsat i u konkrétní cenové verze. Sleva prodejce jde z naší provize a krátí i jeho bonus.</div>';
++
++// --- 5) Popis ---
++$c5 = '<div class="field"><label>Popis (CS)</label><textarea name="description_cs" class="ta-tall">'.$v('description_cs').'</textarea></div>'
+   . '<div class="grid-2">'
+-  . '<div class="field"><label>Popis (EN)</label><textarea name="description_en">'.$v('description_en').'</textarea></div>'
+-  . '<div class="field"><label>Popis (DE)</label><textarea name="description_de">'.$v('description_de').'</textarea></div>'
+-  . '</div>'
+-  . '</div>'
+-  . '<div class="fieldset"><div class="lgnd">Jak objednat (prodejní detail, když není kontingent)</div>'
+-  . '<label class="switches mb-10"><input type="checkbox" name="has_contingent"'.$ck('has_contingent').'> Má kontingent (skryje blok „Jak objednat")</label>'
++  . '<div class="field"><label>Popis (EN)</label><textarea name="description_en" class="ta-tall">'.$v('description_en').'</textarea></div>'
++  . '<div class="field"><label>Popis (DE)</label><textarea name="description_de" class="ta-tall">'.$v('description_de').'</textarea></div>'
++  . '</div>';
++
++// --- 6) Jak objednat ---
++$c6 = '<label class="switches mb-10"><input type="checkbox" name="has_contingent"'.$ck('has_contingent').'> Má kontingent (skryje blok „Jak objednat")</label>'
+   . '<div class="field"><label>Instrukce k objednání (přepíše agenturní default)</label><textarea name="order_instructions" placeholder="prázdné = zdědí z agentury">'.$v('order_instructions').'</textarea></div>'
+   . '<div class="field"><label>Odkaz na program / rezervaci (URL)</label><input name="booking_url" value="'.$v('booking_url').'" placeholder="https://…"></div>'
+-  . '<div class="inline-note">Telefon/helpline se bere z kontaktu agentury. Blok se prodejci ukáže jen u produktů bez kontingentu.</div></div>'
+-  . '<div class="fieldset"><div class="lgnd">Záloha (deposit)</div>'
+-  . '<div class="inline-note">Záloha = naše provize (počítá se z % provize). Tady ji volitelně přepíšeš na pevnou částku na osobu. Prázdné = z provize. Volba zálohy se u prodeje objeví jen u agentur s deposit modelem.</div>'
++  . '<div class="inline-note">Telefon/helpline se bere z kontaktu agentury. Blok se prodejci ukáže jen u produktů bez kontingentu.</div>';
++
++// --- 7) Záloha ---
++$c7 = '<div class="inline-note">Záloha = naše provize (počítá se z % provize). Tady ji volitelně přepíšeš na pevnou částku na osobu. Prázdné = z provize. Volba zálohy se u prodeje objeví jen u agentur s deposit modelem.</div>'
+   . ($depHint ? '<div class="callout-amt">' . e($depHint) . '</div>' : '')
+   . '<div class="grid-2">'
+   . '<div class="field"><label>Fixní záloha / os. (Kč)</label><input name="deposit_fixed_czk" class="mono" value="'.$v('deposit_fixed_czk').'" placeholder="z provize"></div>'
+   . '<div class="field"><label>Fixní záloha / os. (€)</label><input name="deposit_fixed_eur" class="mono" value="'.$v('deposit_fixed_eur').'" placeholder="z provize"></div>'
+-  . '</div></div>'
+-  . '<div class="fieldset"><div class="lgnd">Místo srazu / konání (na voucher)</div>'
+-  . '<div class="field"><label>Adresa místa srazu / konání</label><input name="meeting_point_address" value="'.$v('meeting_point_address').'" placeholder="např. Rašínovo nábřeží 2, Praha 2"></div>'
++  . '</div>';
++
++// --- 8) Místo srazu ---
++$c8 = '<div class="field"><label>Adresa místa srazu / konání</label><input name="meeting_point_address" value="'.$v('meeting_point_address').'" placeholder="např. Rašínovo nábřeží 2, Praha 2"></div>'
+   . '<div class="field"><label>Odkaz na mapu (volitelně; jinak se vytvoří z adresy)</label><input name="map_url" value="'.$v('map_url').'" placeholder="https://maps.google.com/…"></div>'
+   . '<div class="field"><label>Poznámka k místu srazu (pokyn pod adresou)</label><input name="meeting_point_note" value="'.$v('meeting_point_note').'" placeholder="např. Dostavte se 15 min předem; hledejte stojan PTI."></div>'
+-  . '<div class="field"><label>Varianty místa srazu (volitelně, jedna na řádek: Popisek||Adresa) — prodejce vybere při prodeji</label><textarea name="meeting_options" rows="2" placeholder="Stop A||Staroměstské nám.&#10;Stop B||nám. Republiky 3">'.$v('meeting_options').'</textarea></div>'
++  . '<div class="field"><label>Varianty místa srazu (volitelně, jedna na řádek: Popisek||Adresa) — prodejce vybere při prodeji</label><textarea name="meeting_options" rows="2" placeholder="Stop A||Staroměstské nám.&#10;Stop B||nám. Republiky 3">'.$v('meeting_options').'</textarea></div>';
++
++// --- 9) Obsah voucheru ---
++$c9 = '<div class="field"><label><input type="checkbox" name="seating" value="1"'.(!empty($edit['seating'])?' checked':'').'> Vstupenka se sezením (koncert/divadlo) – na prodejním místě lze zadat řadu/sedadla; prázdné = volné sezení</label></div>'
++  . '<div class="field"><label>Doplňky / addony (volitelné, jeden na řádek: Popisek|cena Kč|cena € — cena za osobu)</label><textarea name="addons" rows="3" class="ta-tall" placeholder="Special main course (upgrade)|75|3&#10;Hotel transfer (return minibus)|300|12">'.$addonsText.'</textarea></div>'
++  . '<div class="grid-2">'
++  . '<div class="field"><label>V ceně (jedna položka na řádek)</label><textarea name="included" rows="3" class="ta-tall" placeholder="Vstupné&#10;Audioprůvodce&#10;Anglicky mluvící průvodce">'.$v('included').'</textarea></div>'
++  . '<div class="field"><label>Není v ceně (jedna položka na řádek)</label><textarea name="excluded" rows="3" class="ta-tall" placeholder="Spropitné&#10;Svoz z hotelu&#10;Jídlo a nápoje">'.$v('excluded').'</textarea></div>'
+   . '</div>'
+-  . '<div class="fieldset"><div class="lgnd">Obsah voucheru (sezení, doplňky, v ceně, info)</div>'
+-  . '<div class="field"><label><input type="checkbox" name="seating" value="1"'.(!empty($edit['seating'])?' checked':'').'> Vstupenka se sezením (koncert/divadlo) – na prodejním místě lze zadat řadu/sedadla; prázdné = volné sezení</label></div>'
+-  . '<div class="field"><label>Doplňky / addony (volitelné, jeden na řádek: Popisek|cena Kč|cena € — cena za osobu)</label><textarea name="addons" rows="3" placeholder="Special main course (upgrade)|75|3&#10;Hotel transfer (return minibus)|300|12">'.$addonsText.'</textarea></div>'
+-  . '<div class="field"><label>V ceně (jedna položka na řádek)</label><textarea name="included" rows="3" placeholder="Vstupné&#10;Audioprůvodce&#10;Anglicky mluvící průvodce">'.$v('included').'</textarea></div>'
+-  . '<div class="field"><label>Není v ceně (jedna položka na řádek)</label><textarea name="excluded" rows="3" placeholder="Spropitné&#10;Svoz z hotelu&#10;Jídlo a nápoje">'.$v('excluded').'</textarea></div>'
+   . '<div class="field"><label>Vezměte s sebou (jedna položka na řádek)</label><textarea name="what_to_bring" rows="2" placeholder="Tento voucher&#10;Doklad totožnosti">'.$v('what_to_bring').'</textarea></div>'
+   . '<div class="field"><label>Důležité informace (omezení, dress code, přístupnost…)</label><textarea name="important_info" rows="2">'.$v('important_info').'</textarea></div>'
+   . '<div class="field"><label>Storno podmínky</label><input name="cancellation_policy" value="'.$v('cancellation_policy').'" placeholder="např. Bezplatné storno do 24 h před začátkem; poté nevratné."></div>'
+-  . '<div class="inline-note">Zobrazí se na PDF voucheru i s QR kódem na Google Maps.</div></div>'
+-  . '<div class="form-actions">'
++  . '<div class="inline-note">Zobrazí se na PDF voucheru i s QR kódem na Google Maps.</div>';
++
++$form = '<div class="adm-editor" id="prod-editor">'
++  . '<div class="adm-editor-head"><h3>' . $formTitle . '</h3>'
++  . ($edit ? '<div class="editor-links"><a class="btn-s" href="/admin/pricing.php?product=' . (int) $edit['id'] . '">Upravit ceny</a> <a class="btn-s" href="/admin/schedules.php?product=' . (int) $edit['id'] . '">Upravit rozvrh</a> <a class="btn-g" href="/product.php?id=' . (int) $edit['id'] . '" target="_blank" rel="noopener">Náhled jako prodejce ↗</a></div>' : '')
++  . '</div>'
++  . $noAgency
++  . '<form method="post" enctype="multipart/form-data">' . Csrf::field() . '<input type="hidden" name="do" value="save"><input type="hidden" name="id" value="' . ($edit?(int)$edit['id']:0) . '">'
++  . $card('1', 'Základ produktu', 'Identita, jazyky, kategorie, rozvrh', $c1)
++  . $card('2', 'Obrázek produktu', 'Promo foto z letáku', $imgBlock)
++  . $card('3', 'Vyzvednutí', 'Pickup / svoz z hotelu', $c3)
++  . $card('4', 'Provize a bonus', 'Náš zisk + bonus prodejce', $c4)
++  . $card('5', 'Popis', 'CS · EN · DE', $c5)
++  . $card('6', 'Jak objednat', 'Prodejní detail, když není kontingent', $c6)
++  . $card('7', 'Záloha', 'Deposit — přepis z provize', $c7)
++  . $card('8', 'Místo srazu', 'Adresa, mapa, varianty — na voucher', $c8)
++  . $card('9', 'Obsah voucheru', 'Sezení, doplňky, v ceně, info', $c9)
++  . '<div class="adm-savebar">'
+   . '<a class="btn-g" href="/admin/products.php">Zrušit</a>'
++  . '<span class="adm-savebar-info">' . $savebarInfo . '</span>'
+   . '<button type="submit" name="after" value="stay" class="btn-p"'.($agencies?'':' disabled').'>'.($edit?'Uložit':'Vytvořit').'</button>'
+   . '<button type="submit" name="after" value="close" class="btn-s"'.($agencies?'':' disabled').'>Uložit a zavřít</button>'
+   . '</div>'
